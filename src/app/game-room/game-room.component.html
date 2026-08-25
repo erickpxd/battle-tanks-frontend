@@ -1,0 +1,67 @@
+<main class="room">
+  <section class="room__stage" aria-label="Sala de jogos">
+    <header class="room__header">
+      <div>
+        <p class="room__eyebrow">Battle Tanks</p>
+        <h1>Sala de batalha</h1>
+      </div>
+
+      <div class="room__count" aria-label="Jogadores conectados">
+        <strong>{{ playerCount() }}</strong>
+        <span>online</span>
+      </div>
+    </header>
+
+    <div class="room__content">
+      <section class="arena" aria-label="Mapa da sala">
+        <div class="arena__grid">
+          @for (player of players(); track player.id) {
+            <span
+              class="arena__marker"
+              [class.arena__marker--red]="player.team === 'red'"
+              [class.arena__marker--neutral]="player.team === 'neutral'"
+              [style.left.%]="arenaCoordinate(player.position.x)"
+              [style.top.%]="arenaCoordinate(player.position.y)"
+              [style.rotate.deg]="player.position.rotation"
+              [attr.aria-label]="player.name + ' em ' + positionLabel(player.position)"
+            >
+              {{ player.name.slice(0, 1).toUpperCase() }}
+            </span>
+          }
+        </div>
+      </section>
+
+      <aside class="players" aria-label="Jogadores conectados">
+        <div class="players__heading">
+          <h2>Jogadores conectados</h2>
+          <span>{{ playerCount() }}</span>
+        </div>
+
+        @if (hasPlayers()) {
+          <ul class="players__list">
+            @for (player of players(); track player.id) {
+              <li class="player">
+                <div class="player__identity">
+                  <span class="player__avatar" [class.player__avatar--red]="player.team === 'red'">
+                    {{ player.name.slice(0, 1).toUpperCase() }}
+                  </span>
+                  <div>
+                    <strong>{{ player.name }}</strong>
+                    <span>{{ positionLabel(player.position) }}</span>
+                  </div>
+                </div>
+
+                <div class="player__stats">
+                  <span>HP {{ player.health }}/{{ player.maxHealth }}</span>
+                  <span>{{ player.score }} pts</span>
+                </div>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="players__empty">Aguardando jogadores...</p>
+        }
+      </aside>
+    </div>
+  </section>
+</main>
