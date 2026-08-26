@@ -6,9 +6,9 @@
         <h1>Sala de batalha</h1>
       </div>
 
-      <div class="room__count" aria-label="Jogadores conectados">
-        <strong>{{ playerCount() }}</strong>
-        <span>online</span>
+      <div class="room__count" aria-label="Jogadores na sala de espera">
+        <strong>{{ playerCount() }}/{{ waitingRoomCapacity }}</strong>
+        <span>na espera</span>
       </div>
     </header>
 
@@ -31,10 +31,10 @@
         </div>
       </section>
 
-      <aside class="players" aria-label="Jogadores conectados">
+      <aside class="players" aria-label="Jogadores na sala de espera">
         <div class="players__heading">
-          <h2>Jogadores conectados</h2>
-          <span>{{ playerCount() }}</span>
+          <h2>Sala de espera</h2>
+          <span>{{ playerCount() }}/{{ waitingRoomCapacity }}</span>
         </div>
 
         @if (hasPlayers()) {
@@ -59,7 +59,7 @@
             }
           </ul>
         } @else {
-          <p class="players__empty">Aguardando jogadores...</p>
+          <p class="players__empty">Aguardando jogadores na sala de espera...</p>
         }
       </aside>
     </div>
