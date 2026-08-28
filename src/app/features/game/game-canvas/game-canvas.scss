@@ -1,0 +1,21 @@
+:host {
+  display: block;
+}
+
+.canvas-frame {
+  aspect-ratio: 4 / 3;
+  background: #11150f;
+  border: 2px solid #4e5b45;
+  box-shadow: inset 0 0 2rem rgb(0 0 0 / 45%);
+  margin-inline: auto;
+  max-width: 800px;
+  overflow: hidden;
+  width: 100%;
+}
+
+canvas {
+  display: block;
+  height: 100%;
+  image-rendering: auto;
+  width: 100%;
+}
