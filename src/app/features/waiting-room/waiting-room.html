@@ -1,0 +1,124 @@
+<main class="waiting-room page-shell">
+  <header class="hero">
+    <p class="eyebrow">Multiplayer em tempo real</p>
+    <h1>Battle City</h1>
+    <p>Entre na sala, converse com os jogadores e prepare seu tanque.</p>
+    <div class="connection" [class]="'connection connection--' + connectionStatus">
+      <span aria-hidden="true"></span>
+      {{ connectionLabel() }}
+    </div>
+  </header>
+
+  @if (connectionError) {
+    <section class="notice" role="alert">
+      <p>{{ connectionError }}</p>
+      <button type="button" class="button button--secondary" (click)="retryConnection()">
+        Tentar conectar novamente
+      </button>
+    </section>
+  }
+
+  <div class="room-grid">
+    <section class="panel join-panel">
+      <h2>Identificação</h2>
+      <form (ngSubmit)="submitPlayer()">
+        <label for="player-name">Nome do jogador</label>
+        <div class="inline-form">
+          <input
+            id="player-name"
+            name="playerName"
+            type="text"
+            maxlength="40"
+            autocomplete="nickname"
+            placeholder="Digite seu nome"
+            [(ngModel)]="playerName"
+          />
+          <button type="submit" class="button">Entrar na sala</button>
+        </div>
+        @if (nameError) {
+          <p class="field-error" role="alert">{{ nameError }}</p>
+        }
+        @if (savedPlayerName) {
+          <p class="saved-name">
+            Jogador atual: <strong>{{ savedPlayerName }}</strong>
+          </p>
+        }
+      </form>
+
+      <div class="players-heading">
+        <h2>Jogadores conectados</h2>
+        <span>{{ players.length }}</span>
+      </div>
+      @if (players.length === 0) {
+        <p class="empty-state">Nenhum jogador conectado.</p>
+      } @else {
+        <ul class="player-list">
+          @for (player of players; track player.id) {
+            <li><span aria-hidden="true">◆</span>{{ player.name }}</li>
+          }
+        </ul>
+      }
+
+      <button
+        type="button"
+        class="button game-button"
+        [disabled]="!savedPlayerName"
+        (click)="openGame()"
+      >
+        Abrir campo de batalha
+      </button>
+    </section>
+
+    <section class="panel chat-panel">
+      <div class="chat-heading">
+        <div>
+          <p class="eyebrow">Canal da sala</p>
+          <h2>Chat</h2>
+        </div>
+        <span>{{ messages.length }} mensagens</span>
+      </div>
+
+      <div #chatHistory class="chat-history" aria-live="polite">
+        @if (messages.length === 0) {
+          <p class="empty-state">
+            O chat depende da conexão WebSocket. As mensagens confirmadas pelo servidor aparecerão
+            aqui.
+          </p>
+        } @else {
+          @for (message of messages; track message.id ?? $index) {
+            <article class="chat-message">
+              <header>
+                <strong>{{ message.playerName }}</strong>
+                <time [attr.datetime]="message.timestamp">
+                  {{ message.timestamp | date: 'HH:mm' }}
+                </time>
+              </header>
+              <p>{{ message.message }}</p>
+            </article>
+          }
+        }
+      </div>
+
+      <form class="chat-form" (ngSubmit)="sendChat()">
+        <label class="sr-only" for="chat-message">Mensagem</label>
+        <input
+          id="chat-message"
+          name="chatText"
+          type="text"
+          maxlength="250"
+          autocomplete="off"
+          placeholder="Escreva uma mensagem"
+          [disabled]="connectionStatus !== 'connected'"
+          [(ngModel)]="chatText"
+        />
+        <button
+          type="submit"
+          class="button"
+          [disabled]="connectionStatus !== 'connected' || !chatText.trim()"
+        >
+          Enviar
+        </button>
+      </form>
+    </section>
+  </div>
+</main>

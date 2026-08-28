@@ -1,0 +1,226 @@
+:host {
+  display: block;
+}
+
+.hero {
+  margin-bottom: 1.5rem;
+
+  h1 {
+    color: var(--accent);
+    font-size: clamp(2.4rem, 8vw, 4.5rem);
+    letter-spacing: 0.08em;
+    line-height: 1;
+    margin: 0.2rem 0 0.6rem;
+    text-transform: uppercase;
+  }
+
+  > p:last-of-type {
+    color: var(--text-muted);
+    margin: 0;
+  }
+}
+
+.eyebrow {
+  color: var(--accent-soft);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.connection {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 700;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.45rem 0.75rem;
+
+  span {
+    background: var(--danger);
+    border-radius: 50%;
+    height: 0.6rem;
+    width: 0.6rem;
+  }
+
+  &--connected span {
+    background: var(--success);
+    box-shadow: 0 0 0.7rem var(--success);
+  }
+
+  &--connecting span {
+    background: var(--warning);
+  }
+}
+
+.notice {
+  align-items: center;
+  background: color-mix(in srgb, var(--danger) 12%, var(--panel));
+  border: 1px solid var(--danger);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding: 0.8rem 1rem;
+
+  p {
+    margin: 0;
+  }
+}
+
+.room-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(17rem, 0.8fr) minmax(20rem, 1.2fr);
+}
+
+.panel {
+  background: linear-gradient(145deg, var(--panel), var(--panel-strong));
+  border: 1px solid var(--border);
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 20%);
+  min-width: 0;
+  padding: clamp(1rem, 3vw, 1.5rem);
+
+  h2 {
+    font-size: 1.1rem;
+    margin: 0 0 0.8rem;
+  }
+}
+
+label {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.inline-form,
+.chat-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.field-error {
+  color: var(--danger-soft);
+  font-size: 0.82rem;
+  margin: 0.5rem 0 0;
+}
+
+.saved-name {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0.7rem 0 0;
+}
+
+.players-heading,
+.chat-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.8rem;
+
+  h2 {
+    margin: 0;
+  }
+
+  > span {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+}
+
+.players-heading > span {
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+}
+
+.player-list {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0.8rem 0 0;
+  padding: 0;
+
+  li {
+    background: var(--surface);
+    border-left: 3px solid var(--success);
+    padding: 0.65rem;
+  }
+
+  span {
+    color: var(--success);
+    margin-right: 0.55rem;
+  }
+}
+
+.empty-state {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.game-button {
+  margin-top: 1.4rem;
+  width: 100%;
+}
+
+.chat-heading {
+  margin-top: 0;
+}
+
+.chat-history {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  height: 20rem;
+  margin: 1rem 0;
+  overflow-y: auto;
+  padding: 0.8rem;
+}
+
+.chat-message {
+  border-bottom: 1px solid var(--border);
+  padding: 0.65rem 0;
+
+  &:first-child {
+    padding-top: 0;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  strong {
+    color: var(--accent-soft);
+  }
+
+  time {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+  }
+
+  p {
+    margin: 0.35rem 0 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 760px) {
+  .room-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notice,
+  .inline-form,
+  .chat-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
