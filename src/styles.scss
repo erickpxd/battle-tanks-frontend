@@ -1,1 +1,110 @@
-/* You can add global styles to this file, and also import other style files */
+:root {
+  --background: #0b0e0a;
+  --surface: #151a13;
+  --panel: #1b2118;
+  --panel-strong: #121610;
+  --border: #3d4937;
+  --text: #f1f2e9;
+  --text-muted: #a7ad9e;
+  --accent: #f4c542;
+  --accent-soft: #ffe17a;
+  --success: #76cf68;
+  --warning: #f3aa4e;
+  --danger: #c54f45;
+  --danger-soft: #ff8f84;
+  color-scheme: dark;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 50% 0, rgb(84 98 68 / 22%), transparent 35rem), var(--background);
+  color: var(--text);
+  min-height: 100dvh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--text);
+  min-width: 0;
+  padding: 0.7rem 0.8rem;
+  width: 100%;
+}
+
+input:focus-visible,
+button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 2px;
+}
+
+.page-shell {
+  margin-inline: auto;
+  max-width: 1120px;
+  min-height: 100dvh;
+  padding: clamp(1rem, 4vw, 2.5rem);
+}
+
+.button {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #17150c;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0.7rem 1rem;
+  transition:
+    filter 120ms ease,
+    transform 120ms ease;
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+  opacity: 0.45;
+}
+
+.button--secondary {
+  background: transparent;
+  color: var(--accent-soft);
+}
+
+.sr-only {
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
