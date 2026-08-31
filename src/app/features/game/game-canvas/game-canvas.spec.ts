@@ -166,7 +166,7 @@ describe('GameCanvas', () => {
     expect(gameService.sendPlayerMove).toHaveBeenCalledOnce();
   });
 
-  it('should destroy a destructible wall part when a local shot hits it', () => {
+  it('should destroy a vertical strip when a horizontal shot hits a wall', () => {
     const { x, y } = component.localTank.position;
     component.setCellBlocked(x + 1, y);
 
@@ -176,13 +176,34 @@ describe('GameCanvas', () => {
 
     const expandedColumn = (x + 1) * component.battleMap.subdivision;
     const expandedRow = y * component.battleMap.subdivision + 1;
-    expect(component.battleMap.getExpandedTile(expandedColumn, expandedRow)).toBe(
-      TerrainType.Ground,
-    );
-    expect(gameService.sendMapTileDestroyed).toHaveBeenCalledWith({
-      column: expandedColumn,
-      row: expandedRow,
-    });
+    for (const row of [expandedRow - 1, expandedRow, expandedRow + 1]) {
+      expect(component.battleMap.getExpandedTile(expandedColumn, row)).toBe(TerrainType.Ground);
+      expect(gameService.sendMapTileDestroyed).toHaveBeenCalledWith({
+        column: expandedColumn,
+        row,
+      });
+    }
+    expect(gameService.sendMapTileDestroyed).toHaveBeenCalledTimes(3);
+  });
+
+  it('should destroy a horizontal strip when a vertical shot hits a wall', () => {
+    const { x, y } = component.localTank.position;
+    component.setCellBlocked(x, y - 1);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    runNextFrame();
+
+    const expandedColumn = x * component.battleMap.subdivision + 1;
+    const expandedRow = y * component.battleMap.subdivision - 1;
+    for (const column of [expandedColumn - 1, expandedColumn, expandedColumn + 1]) {
+      expect(component.battleMap.getExpandedTile(column, expandedRow)).toBe(TerrainType.Ground);
+      expect(gameService.sendMapTileDestroyed).toHaveBeenCalledWith({
+        column,
+        row: expandedRow,
+      });
+    }
+    expect(gameService.sendMapTileDestroyed).toHaveBeenCalledTimes(3);
   });
 
   it('should keep an indestructible wall after a shot', () => {

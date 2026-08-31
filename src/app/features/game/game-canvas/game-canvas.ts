@@ -2,6 +2,7 @@ import { AfterViewInit, Component, ElementRef, inject, OnDestroy, ViewChild } fr
 import { Subscription } from 'rxjs';
 
 import { GameState } from '../../../core/models/game-state.model';
+import { MapTileChange } from '../../../core/models/map-tile-change.model';
 import { Player } from '../../../core/models/player.model';
 import { PlayerDirection, Position } from '../../../core/models/position.model';
 import { GameService } from '../../../core/services/game.service';
@@ -294,16 +295,19 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       return false;
     }
 
-    const destroyed = this.mapStore.destroyTile(column, row);
+    const definition = terrainDefinition(tile);
+    const destroyed = definition.destructible
+      ? this.mapStore.destroyTiles(projectileImpactTiles(column, row, projectile.direction))
+      : [];
     this.explosions.push({
       x: projectile.x,
       y: projectile.y,
       startedAt: timestamp,
-      destructive: destroyed,
+      destructive: destroyed.length > 0,
     });
     this.projectile = undefined;
-    if (destroyed) {
-      this.gameService.sendMapTileDestroyed({ column, row });
+    for (const change of destroyed) {
+      this.gameService.sendMapTileDestroyed(change);
     }
     return true;
   }
@@ -603,6 +607,17 @@ function directionMovement(direction: PlayerDirection): Readonly<{ x: number; y:
     left: { x: -1, y: 0 },
   };
   return movements[direction];
+}
+
+function projectileImpactTiles(
+  column: number,
+  row: number,
+  direction: PlayerDirection,
+): MapTileChange[] {
+  if (direction === 'left' || direction === 'right') {
+    return [-1, 0, 1].map((rowOffset) => ({ column, row: row + rowOffset }));
+  }
+  return [-1, 0, 1].map((columnOffset) => ({ column: column + columnOffset, row }));
 }
 
 function interpolate(from: number, to: number, progress: number): number {
