@@ -4,6 +4,7 @@ import { BehaviorSubject, Subject } from 'rxjs';
 import { GameState } from '../../../core/models/game-state.model';
 import { Player } from '../../../core/models/player.model';
 import { GameService } from '../../../core/services/game.service';
+import { TerrainType } from '../map/terrain-type';
 import { GameCanvas } from './game-canvas';
 
 describe('GameCanvas', () => {
@@ -16,11 +17,16 @@ describe('GameCanvas', () => {
 
   const playerMoves = new Subject<Player>();
   const gameStates = new Subject<GameState>();
+  const mapTileChanges = new Subject<{ column: number; row: number }>();
   const localPlayerId = new BehaviorSubject<string | null>(null);
   const gameService = {
     sendPlayerMove: vi.fn(),
+    sendMapTileDestroyed: vi.fn(),
     onPlayerMove: vi.fn((callback: (player: Player) => void) => playerMoves.subscribe(callback)),
     onGameState: vi.fn((callback: (state: GameState) => void) => gameStates.subscribe(callback)),
+    onMapTileDestroyed: vi.fn((callback: (change: { column: number; row: number }) => void) =>
+      mapTileChanges.subscribe(callback),
+    ),
     localPlayerId$: localPlayerId.asObservable(),
   };
 
@@ -94,44 +100,111 @@ describe('GameCanvas', () => {
   it('should create the canvas component', () => {
     expect(component).toBeTruthy();
     expect(context.setTransform).toHaveBeenCalled();
+    expect(component.battleMap.originalColumns).toBe(20);
+    expect(component.battleMap.originalRows).toBe(15);
+    expect(component.battleMap.expandedColumns).toBe(60);
+    expect(component.battleMap.expandedRows).toBe(45);
   });
 
-  it('should move continuously while a movement key is pressed', () => {
+  it('should animate before completing a one-cell movement', () => {
     const initialX = component.localTank.position.x;
+    const initialY = component.localTank.position.y;
+    prepareAnimationClock();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
 
+    expect(component.localTank.position.x).toBe(initialX);
     runNextFrame();
 
-    expect(component.localTank.position.x).toBeGreaterThan(initialX);
+    const renderedCenterX = context.translate.mock.calls.at(-1)?.[0] as number;
+    const initialCenterX = initialX * 40 + 20;
+    expect(renderedCenterX).toBeGreaterThan(initialCenterX);
+    expect(renderedCenterX).toBeLessThan(initialCenterX + 40);
+    expect(component.localTank.position.x).toBe(initialX);
+
+    finishMovement();
+
+    expect(component.localTank.position.x).toBe(initialX + 1);
+    expect(component.localTank.position.y).toBe(initialY);
   });
 
-  it('should keep the local tank inside the logical canvas', () => {
-    component.localTank.position.x = component.logicalWidth - component.localTank.width;
+  it('should keep the local tank inside the 20 by 15 grid', () => {
+    component.localTank.position.x = component.gridColumns - 1;
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
 
-    runNextFrame();
+    expect(component.localTank.position.x).toBe(component.gridColumns - 1);
+  });
 
-    expect(component.localTank.position.x).toBe(component.logicalWidth - component.localTank.width);
+  it('should ignore new movement commands until the current animation ends', () => {
+    const initialPosition = { ...component.localTank.position };
+    prepareAnimationClock();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 's' }));
+    finishMovement();
+
+    expect(component.localTank.position.x).toBe(initialPosition.x + 1);
+    expect(component.localTank.position.y).toBe(initialPosition.y);
+    expect(component.localTank.position.direction).toBe('right');
+  });
+
+  it('should not enter a cell occupied by an object', () => {
+    const { x, y } = component.localTank.position;
+    component.setCellBlocked(x + 1, y);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+
+    expect(component.localTank.position.x).toBe(x);
+    expect(component.localTank.position.y).toBe(y);
   });
 
   it('should send a position only after it changes', () => {
     runNextFrame();
     expect(gameService.sendPlayerMove).not.toHaveBeenCalled();
 
+    prepareAnimationClock();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
-    runNextFrame();
-    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'w' }));
-    runNextFrame();
+    finishMovement();
 
     expect(gameService.sendPlayerMove).toHaveBeenCalledOnce();
+  });
+
+  it('should destroy a destructible wall part when a local shot hits it', () => {
+    const { x, y } = component.localTank.position;
+    component.setCellBlocked(x + 1, y);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    runNextFrame();
+
+    const expandedColumn = (x + 1) * component.battleMap.subdivision;
+    const expandedRow = y * component.battleMap.subdivision + 1;
+    expect(component.battleMap.getExpandedTile(expandedColumn, expandedRow)).toBe(
+      TerrainType.Ground,
+    );
+    expect(gameService.sendMapTileDestroyed).toHaveBeenCalledWith({
+      column: expandedColumn,
+      row: expandedRow,
+    });
+  });
+
+  it('should keep an indestructible wall after a shot', () => {
+    const { x, y } = component.localTank.position;
+    component.battleMap.setOriginalCellInExpandedMap(x + 1, y, TerrainType.IndestructibleWall);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    runNextFrame();
+
+    const expandedColumn = (x + 1) * component.battleMap.subdivision;
+    const expandedRow = y * component.battleMap.subdivision + 1;
+    expect(component.battleMap.getExpandedTile(expandedColumn, expandedRow)).toBe(
+      TerrainType.IndestructibleWall,
+    );
+    expect(gameService.sendMapTileDestroyed).not.toHaveBeenCalled();
   });
 
   it('should remove keyboard listeners and cancel animation on destroy', () => {
     fixture.destroy();
 
     expect(removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
-    expect(removeEventListener).toHaveBeenCalledWith('keyup', expect.any(Function));
-    expect(removeEventListener).toHaveBeenCalledWith('blur', expect.any(Function));
     expect(cancelAnimationFrame).toHaveBeenCalled();
   });
 
@@ -144,5 +217,16 @@ describe('GameCanvas', () => {
     frameCallbacks.delete(nextFrame[0]);
     nextFrame[1](frameTime);
     frameTime += 60;
+  }
+
+  function finishMovement(): void {
+    const framesToFinish = Math.ceil(component.movementDurationMs / 60) + 1;
+    for (let frame = 0; frame < framesToFinish; frame += 1) {
+      runNextFrame();
+    }
+  }
+
+  function prepareAnimationClock(): void {
+    frameTime = Math.max(frameTime, performance.now() + 60);
   }
 });

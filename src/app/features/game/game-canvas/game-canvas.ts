@@ -1,17 +1,40 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, inject, OnDestroy, ViewChild } from '@angular/core';
 import { Subscription } from 'rxjs';
 
 import { GameState } from '../../../core/models/game-state.model';
 import { Player } from '../../../core/models/player.model';
 import { PlayerDirection, Position } from '../../../core/models/position.model';
 import { GameService } from '../../../core/services/game.service';
+import { BattleMapSignalStore } from '../map/battle-map.store';
+import { TerrainType, terrainDefinition } from '../map/terrain-type';
 
 interface TankState {
   position: Position;
   width: number;
   height: number;
-  speed: number;
 }
+
+interface TankMovementAnimation {
+  from: Readonly<{ x: number; y: number }>;
+  to: Readonly<{ x: number; y: number }>;
+  startedAt: number;
+}
+
+interface Projectile {
+  x: number;
+  y: number;
+  direction: PlayerDirection;
+}
+
+interface Explosion {
+  x: number;
+  y: number;
+  startedAt: number;
+  destructive: boolean;
+}
+
+const PROJECTILE_SPEED = 420;
+const EXPLOSION_DURATION_MS = 320;
 
 const KEY_DIRECTIONS: Readonly<Record<string, PlayerDirection>> = {
   w: 'up',
@@ -31,23 +54,33 @@ const KEY_DIRECTIONS: Readonly<Record<string, PlayerDirection>> = {
 })
 export class GameCanvas implements AfterViewInit, OnDestroy {
   @ViewChild('gameCanvas', { static: true }) private canvasRef!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('canvasViewport', { static: true })
+  private canvasViewportRef!: ElementRef<HTMLElement>;
+
+  private readonly mapStore = inject(BattleMapSignalStore);
 
   readonly logicalWidth = 800;
   readonly logicalHeight = 600;
+  readonly battleMap = this.mapStore.battleMap;
+  readonly gridColumns = this.battleMap.originalColumns;
+  readonly gridRows = this.battleMap.originalRows;
+  readonly movementDurationMs = 180;
   readonly localTank: TankState = {
-    position: { x: 100, y: 100, direction: 'up' },
+    position: { x: 8, y: 1, direction: 'up' },
     width: 32,
-    height: 38,
-    speed: 165,
+    height: 32,
   };
 
   private context: CanvasRenderingContext2D | null = null;
-  private readonly pressedKeys = new Set<string>();
   private readonly remotePlayers = new Map<string, Player>();
   private readonly subscriptions = new Subscription();
   private resizeObserver?: ResizeObserver;
   private frameId?: number;
-  private lastFrameTime = 0;
+  private lastFrameTimestamp = performance.now();
+  private localTankMovement?: TankMovementAnimation;
+  private projectile?: Projectile;
+  private explosions: Explosion[] = [];
+  private readonly renderedLocalTankPosition: Position = { ...this.localTank.position };
   private lastMovementSentAt = Number.NEGATIVE_INFINITY;
   private lastSentPosition: Position = { ...this.localTank.position };
   private localPlayerId: string | null = null;
@@ -59,6 +92,14 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     }
 
     const key = event.key.toLowerCase();
+    if (key === ' ' || key === 'spacebar') {
+      event.preventDefault();
+      if (!event.repeat) {
+        this.fireLocalShot();
+      }
+      return;
+    }
+
     const direction = KEY_DIRECTIONS[key];
     if (!direction) {
       return;
@@ -67,23 +108,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     if (key.startsWith('arrow')) {
       event.preventDefault();
     }
-    this.localTank.position.direction = direction;
-    this.pressedKeys.add(key);
-  };
-
-  private readonly handleKeyUp = (event: KeyboardEvent): void => {
-    const key = event.key.toLowerCase();
-    if (!KEY_DIRECTIONS[key]) {
-      return;
-    }
-    if (key.startsWith('arrow')) {
-      event.preventDefault();
-    }
-    this.pressedKeys.delete(key);
-  };
-
-  private readonly handleWindowBlur = (): void => {
-    this.pressedKeys.clear();
+    this.moveLocalTank(direction);
   };
 
   private readonly handleWindowResize = (): void => {
@@ -91,11 +116,11 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   };
 
   private readonly gameLoop = (timestamp: number): void => {
-    const elapsedSeconds = Math.min(Math.max(timestamp - this.lastFrameTime, 0) / 1000, 0.05);
-    this.lastFrameTime = timestamp;
-    this.updateLocalTank(elapsedSeconds);
+    this.updateLocalTankAnimation(timestamp);
+    this.updateProjectile(timestamp);
+    this.updateExplosions(timestamp);
     this.sendMovementWhenNeeded(timestamp);
-    this.draw();
+    this.draw(timestamp);
     this.frameId = requestAnimationFrame(this.gameLoop);
   };
 
@@ -117,14 +142,19 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     }
 
     window.addEventListener('keydown', this.handleKeyDown, { passive: false });
-    window.addEventListener('keyup', this.handleKeyUp, { passive: false });
-    window.addEventListener('blur', this.handleWindowBlur);
 
     this.subscriptions.add(
       this.gameService.onPlayerMove((player) => this.updateRemotePlayer(player)),
     );
     this.subscriptions.add(
       this.gameService.onGameState((state) => this.replaceRemotePlayers(state)),
+    );
+    this.subscriptions.add(
+      this.gameService.onMapTileDestroyed((change) => {
+        if (this.mapStore.destroyTile(change.column, change.row)) {
+          this.addExplosionAtTile(change.column, change.row, true);
+        }
+      }),
     );
     this.subscriptions.add(
       this.gameService.localPlayerId$.subscribe((playerId) => {
@@ -135,7 +165,6 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       }),
     );
 
-    this.lastFrameTime = performance.now();
     this.draw();
     this.frameId = requestAnimationFrame(this.gameLoop);
   }
@@ -149,33 +178,184 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       window.removeEventListener('resize', this.handleWindowResize);
     }
     window.removeEventListener('keydown', this.handleKeyDown);
-    window.removeEventListener('keyup', this.handleKeyUp);
-    window.removeEventListener('blur', this.handleWindowBlur);
-    this.pressedKeys.clear();
     this.subscriptions.unsubscribe();
   }
 
-  private updateLocalTank(elapsedSeconds: number): void {
-    const horizontal =
-      Number(this.isDirectionPressed('right')) - Number(this.isDirectionPressed('left'));
-    const vertical =
-      Number(this.isDirectionPressed('down')) - Number(this.isDirectionPressed('up'));
-    if (horizontal === 0 && vertical === 0) {
+  setCellBlocked(x: number, y: number, blocked = true): void {
+    this.mapStore.setOriginalCell(
+      x,
+      y,
+      blocked ? TerrainType.DestructibleWall : TerrainType.Ground,
+    );
+  }
+
+  destroyWallPart(expandedX: number, expandedY: number): boolean {
+    return this.mapStore.destroyTile(expandedX, expandedY);
+  }
+
+  fireLocalShot(): boolean {
+    if (this.projectile) {
+      return false;
+    }
+
+    const cellWidth = this.logicalWidth / this.gridColumns;
+    const cellHeight = this.logicalHeight / this.gridRows;
+    const direction = this.renderedLocalTankPosition.direction;
+    const movement = directionMovement(direction);
+    const muzzleDistance = Math.min(cellWidth, cellHeight) * 0.6;
+    this.projectile = {
+      x: this.renderedLocalTankPosition.x * cellWidth + cellWidth / 2 + movement.x * muzzleDistance,
+      y:
+        this.renderedLocalTankPosition.y * cellHeight +
+        cellHeight / 2 +
+        movement.y * muzzleDistance,
+      direction,
+    };
+    return true;
+  }
+
+  private moveLocalTank(direction: PlayerDirection): void {
+    if (this.localTankMovement) {
       return;
     }
 
-    const vectorLength = Math.hypot(horizontal, vertical) || 1;
-    const distance = this.localTank.speed * elapsedSeconds;
-    const nextX = this.localTank.position.x + (horizontal / vectorLength) * distance;
-    const nextY = this.localTank.position.y + (vertical / vectorLength) * distance;
+    const movement = directionMovement(direction);
+    const nextX = this.localTank.position.x + movement.x;
+    const nextY = this.localTank.position.y + movement.y;
 
-    this.localTank.position.x = clamp(nextX, 0, this.logicalWidth - this.localTank.width);
-    this.localTank.position.y = clamp(nextY, 0, this.logicalHeight - this.localTank.height);
+    this.localTank.position.direction = direction;
+    this.renderedLocalTankPosition.direction = direction;
+    if (!this.canOccupyCell(nextX, nextY)) {
+      return;
+    }
+
+    this.localTankMovement = {
+      from: { x: this.localTank.position.x, y: this.localTank.position.y },
+      to: { x: nextX, y: nextY },
+      startedAt: performance.now(),
+    };
   }
 
-  private isDirectionPressed(direction: PlayerDirection): boolean {
-    return Object.entries(KEY_DIRECTIONS).some(
-      ([key, mappedDirection]) => mappedDirection === direction && this.pressedKeys.has(key),
+  private updateLocalTankAnimation(timestamp: number): void {
+    const movement = this.localTankMovement;
+    if (!movement) {
+      return;
+    }
+
+    const progress = clamp((timestamp - movement.startedAt) / this.movementDurationMs, 0, 1);
+    const easedProgress = smoothStep(progress);
+    this.renderedLocalTankPosition.x = interpolate(movement.from.x, movement.to.x, easedProgress);
+    this.renderedLocalTankPosition.y = interpolate(movement.from.y, movement.to.y, easedProgress);
+
+    if (progress < 1) {
+      return;
+    }
+
+    this.localTank.position.x = movement.to.x;
+    this.localTank.position.y = movement.to.y;
+    this.renderedLocalTankPosition.x = movement.to.x;
+    this.renderedLocalTankPosition.y = movement.to.y;
+    this.localTankMovement = undefined;
+    this.centerViewportOnLocalTank();
+  }
+
+  private updateProjectile(timestamp: number): void {
+    const elapsedSeconds = clamp((timestamp - this.lastFrameTimestamp) / 1000, 0, 0.05);
+    this.lastFrameTimestamp = timestamp;
+    const projectile = this.projectile;
+    if (!projectile) {
+      return;
+    }
+
+    const movement = directionMovement(projectile.direction);
+    const distance = PROJECTILE_SPEED * elapsedSeconds;
+    const steps = Math.max(1, Math.ceil(distance / 4));
+    for (let step = 0; step < steps; step += 1) {
+      projectile.x += (movement.x * distance) / steps;
+      projectile.y += (movement.y * distance) / steps;
+
+      if (!this.isInsideCanvas(projectile.x, projectile.y)) {
+        this.projectile = undefined;
+        return;
+      }
+      if (this.resolveProjectileCollision(projectile, timestamp)) {
+        return;
+      }
+    }
+  }
+
+  private resolveProjectileCollision(projectile: Projectile, timestamp: number): boolean {
+    const tileWidth = this.logicalWidth / this.battleMap.expandedColumns;
+    const tileHeight = this.logicalHeight / this.battleMap.expandedRows;
+    const column = Math.floor(projectile.x / tileWidth);
+    const row = Math.floor(projectile.y / tileHeight);
+    const tile = this.battleMap.getExpandedTile(column, row);
+    if (tile === undefined || !terrainDefinition(tile).blocksMovement) {
+      return false;
+    }
+
+    const destroyed = this.mapStore.destroyTile(column, row);
+    this.explosions.push({
+      x: projectile.x,
+      y: projectile.y,
+      startedAt: timestamp,
+      destructive: destroyed,
+    });
+    this.projectile = undefined;
+    if (destroyed) {
+      this.gameService.sendMapTileDestroyed({ column, row });
+    }
+    return true;
+  }
+
+  private updateExplosions(timestamp: number): void {
+    this.explosions = this.explosions.filter(
+      (explosion) => timestamp - explosion.startedAt < EXPLOSION_DURATION_MS,
+    );
+  }
+
+  private addExplosionAtTile(column: number, row: number, destructive: boolean): void {
+    const tileWidth = this.logicalWidth / this.battleMap.expandedColumns;
+    const tileHeight = this.logicalHeight / this.battleMap.expandedRows;
+    this.explosions.push({
+      x: column * tileWidth + tileWidth / 2,
+      y: row * tileHeight + tileHeight / 2,
+      startedAt: performance.now(),
+      destructive,
+    });
+  }
+
+  private isInsideCanvas(x: number, y: number): boolean {
+    return x >= 0 && x < this.logicalWidth && y >= 0 && y < this.logicalHeight;
+  }
+
+  private centerViewportOnLocalTank(): void {
+    const viewport = this.canvasViewportRef.nativeElement;
+    if (typeof viewport.scrollTo !== 'function') {
+      return;
+    }
+
+    const cellWidth = this.logicalWidth / this.gridColumns;
+    const cellHeight = this.logicalHeight / this.gridRows;
+    viewport.scrollTo({
+      left: this.localTank.position.x * cellWidth - viewport.clientWidth / 2 + cellWidth / 2,
+      top: this.localTank.position.y * cellHeight - viewport.clientHeight / 2 + cellHeight / 2,
+      behavior: 'smooth',
+    });
+  }
+
+  private canOccupyCell(x: number, y: number): boolean {
+    return this.isInsideGrid(x, y) && !this.battleMap.isOriginalCellBlocked(x, y);
+  }
+
+  private isInsideGrid(x: number, y: number): boolean {
+    return (
+      Number.isInteger(x) &&
+      Number.isInteger(y) &&
+      x >= 0 &&
+      x < this.gridColumns &&
+      y >= 0 &&
+      y < this.gridRows
     );
   }
 
@@ -230,7 +410,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.draw();
   }
 
-  private draw(): void {
+  private draw(timestamp = performance.now()): void {
     if (!this.context) {
       return;
     }
@@ -239,11 +419,12 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     context.clearRect(0, 0, this.logicalWidth, this.logicalHeight);
     context.fillStyle = '#11150f';
     context.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+    this.drawExpandedMap(context);
     this.drawGrid(context);
 
     this.drawTank(
       context,
-      this.localTank.position,
+      this.renderedLocalTankPosition,
       this.localTank.width,
       this.localTank.height,
       '#f4c542',
@@ -251,21 +432,99 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     for (const player of this.remotePlayers.values()) {
       this.drawTank(context, player.position, 32, 38, '#7fcf6b', player.name);
     }
+    this.drawProjectile(context);
+    this.drawExplosions(context, timestamp);
   }
 
   private drawGrid(context: CanvasRenderingContext2D): void {
+    const cellWidth = this.logicalWidth / this.gridColumns;
+    const cellHeight = this.logicalHeight / this.gridRows;
+
     context.beginPath();
     context.strokeStyle = '#252d21';
     context.lineWidth = 1;
-    for (let x = 0; x <= this.logicalWidth; x += 40) {
+    for (let x = 0; x <= this.logicalWidth; x += cellWidth) {
       context.moveTo(x, 0);
       context.lineTo(x, this.logicalHeight);
     }
-    for (let y = 0; y <= this.logicalHeight; y += 40) {
+    for (let y = 0; y <= this.logicalHeight; y += cellHeight) {
       context.moveTo(0, y);
       context.lineTo(this.logicalWidth, y);
     }
     context.stroke();
+  }
+
+  private drawExpandedMap(context: CanvasRenderingContext2D): void {
+    const tileWidth = this.logicalWidth / this.battleMap.expandedColumns;
+    const tileHeight = this.logicalHeight / this.battleMap.expandedRows;
+    const tiles = this.mapStore.tiles();
+
+    for (let row = 0; row < this.battleMap.expandedRows; row += 1) {
+      for (let column = 0; column < this.battleMap.expandedColumns; column += 1) {
+        const tile = tiles[row][column];
+        const definition = terrainDefinition(tile);
+        if (!definition.color) {
+          continue;
+        }
+
+        this.drawTerrainTile(
+          context,
+          tile,
+          column * tileWidth,
+          row * tileHeight,
+          tileWidth,
+          tileHeight,
+        );
+      }
+    }
+  }
+
+  private drawTerrainTile(
+    context: CanvasRenderingContext2D,
+    tile: TerrainType,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): void {
+    const definition = terrainDefinition(tile);
+    context.fillStyle = definition.color ?? '#11150f';
+    context.fillRect(x + 0.5, y + 0.5, Math.max(width - 1, 1), Math.max(height - 1, 1));
+
+    if (tile === TerrainType.DestructibleWall) {
+      context.fillStyle = '#e09055';
+      context.fillRect(x + 1.5, y + 1.5, Math.max(width - 3, 1), 2);
+      context.fillStyle = '#71341f';
+      context.fillRect(x + 1.5, y + height - 3.5, Math.max(width - 3, 1), 2);
+    } else if (tile === TerrainType.IndestructibleWall) {
+      context.fillStyle = '#e4e9e8';
+      context.fillRect(x + 1.5, y + 1.5, Math.max(width - 3, 1), 2);
+      context.fillStyle = '#596266';
+      context.fillRect(x + width - 3.5, y + 2, 2, Math.max(height - 4, 1));
+    }
+  }
+
+  private drawProjectile(context: CanvasRenderingContext2D): void {
+    if (!this.projectile) {
+      return;
+    }
+
+    context.fillStyle = '#fff4b0';
+    context.fillRect(this.projectile.x - 3, this.projectile.y - 3, 6, 6);
+    context.fillStyle = '#f06436';
+    context.fillRect(this.projectile.x - 1, this.projectile.y - 1, 2, 2);
+  }
+
+  private drawExplosions(context: CanvasRenderingContext2D, timestamp: number): void {
+    for (const explosion of this.explosions) {
+      const progress = clamp((timestamp - explosion.startedAt) / EXPLOSION_DURATION_MS, 0, 1);
+      const radius = (explosion.destructive ? 18 : 10) * (0.45 + progress);
+      context.fillStyle = progress < 0.5 ? '#fff08a' : '#e24b2d';
+      context.fillRect(explosion.x - radius / 2, explosion.y - 3, radius, 6);
+      context.fillRect(explosion.x - 3, explosion.y - radius / 2, 6, radius);
+      context.fillStyle = '#f39a35';
+      context.fillRect(explosion.x - 4, explosion.y - 4, 8, 8);
+    }
   }
 
   private drawTank(
@@ -276,15 +535,24 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     color: string,
     name?: string,
   ): void {
+    if (!this.isInsideDrawableGrid(position.x, position.y)) {
+      return;
+    }
+
+    const cellWidth = this.logicalWidth / this.gridColumns;
+    const cellHeight = this.logicalHeight / this.gridRows;
+    const centerX = position.x * cellWidth + cellWidth / 2;
+    const centerY = position.y * cellHeight + cellHeight / 2;
+
     if (name) {
       context.fillStyle = '#e8eadf';
       context.font = '12px system-ui, sans-serif';
       context.textAlign = 'center';
-      context.fillText(name, position.x + width / 2, position.y - 8);
+      context.fillText(name, centerX, position.y * cellHeight - 4);
     }
 
     context.save();
-    context.translate(position.x + width / 2, position.y + height / 2);
+    context.translate(centerX, centerY);
     context.rotate(directionAngle(position.direction));
     context.fillStyle = '#20261e';
     context.fillRect(-width / 2 - 3, -height / 2, 6, height);
@@ -297,6 +565,17 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     context.fillStyle = '#d9a91f';
     context.fill();
     context.restore();
+  }
+
+  private isInsideDrawableGrid(x: number, y: number): boolean {
+    return (
+      Number.isFinite(x) &&
+      Number.isFinite(y) &&
+      x >= 0 &&
+      x <= this.gridColumns - 1 &&
+      y >= 0 &&
+      y <= this.gridRows - 1
+    );
   }
 }
 
@@ -314,6 +593,24 @@ function hasPositionChanged(current: Position, previous: Position): boolean {
   return (
     current.x !== previous.x || current.y !== previous.y || current.direction !== previous.direction
   );
+}
+
+function directionMovement(direction: PlayerDirection): Readonly<{ x: number; y: number }> {
+  const movements: Record<PlayerDirection, Readonly<{ x: number; y: number }>> = {
+    up: { x: 0, y: -1 },
+    right: { x: 1, y: 0 },
+    down: { x: 0, y: 1 },
+    left: { x: -1, y: 0 },
+  };
+  return movements[direction];
+}
+
+function interpolate(from: number, to: number, progress: number): number {
+  return from + (to - from) * progress;
+}
+
+function smoothStep(progress: number): number {
+  return progress * progress * (3 - 2 * progress);
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

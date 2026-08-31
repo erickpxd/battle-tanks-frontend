@@ -99,6 +99,18 @@ describe('GameService', () => {
     });
   });
 
+  it('should create a map destruction event', () => {
+    service.connect();
+    service.openConnection();
+
+    service.sendMapTileDestroyed({ column: 12, row: 7 });
+
+    expect(service.mockSocket.sent).toContainEqual({
+      type: 'map:tile-destroyed',
+      payload: { column: 12, row: 7 },
+    });
+  });
+
   it('should close the shared socket when disconnected', () => {
     service.connect();
     service.openConnection();

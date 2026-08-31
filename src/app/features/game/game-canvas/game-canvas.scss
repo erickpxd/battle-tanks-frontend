@@ -9,13 +9,22 @@
   box-shadow: inset 0 0 2rem rgb(0 0 0 / 45%);
   margin-inline: auto;
   max-width: 800px;
-  overflow: hidden;
+  overflow: auto;
+  scroll-behavior: smooth;
+  scrollbar-color: #6e7b62 #11150f;
   width: 100%;
 }
 
 canvas {
   display: block;
-  height: 100%;
-  image-rendering: auto;
-  width: 100%;
+  height: 600px;
+  image-rendering: pixelated;
+  max-width: none;
+  width: 800px;
+}
+
+@media (min-width: 804px) {
+  .canvas-frame {
+    overflow: hidden;
+  }
 }

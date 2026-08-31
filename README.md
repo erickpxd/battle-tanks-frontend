@@ -63,15 +63,16 @@ oferece uma tentativa manual. O servidor deve aceitar e enviar objetos JSON com 
 
 ## Protocolo esperado
 
-| Evento         | Direção            | Finalidade                |
-| -------------- | ------------------ | ------------------------- |
-| `player:join`  | Cliente → servidor | Registrar entrada         |
-| `player:list`  | Servidor → cliente | Atualizar jogadores       |
-| `player:move`  | Ambas              | Sincronizar posição       |
-| `chat:send`    | Cliente → servidor | Enviar mensagem           |
-| `chat:message` | Servidor → cliente | Receber mensagem          |
-| `game:state`   | Servidor → cliente | Atualizar estado completo |
-| `error`        | Servidor → cliente | Informar erro             |
+| Evento               | Direção            | Finalidade                  |
+| -------------------- | ------------------ | --------------------------- |
+| `player:join`        | Cliente → servidor | Registrar entrada           |
+| `player:list`        | Servidor → cliente | Atualizar jogadores         |
+| `player:move`        | Ambas              | Sincronizar posição         |
+| `map:tile-destroyed` | Ambas              | Sincronizar bloco destruído |
+| `chat:send`          | Cliente → servidor | Enviar mensagem             |
+| `chat:message`       | Servidor → cliente | Receber mensagem            |
+| `game:state`         | Servidor → cliente | Atualizar estado completo   |
+| `error`              | Servidor → cliente | Informar erro               |
 
 O cliente também reconhece `connection:success`, `player:joined` e `player:left`. Uma resposta
 `connection:success` pode informar `id` ou `playerId`; esse identificador é usado para evitar
@@ -198,10 +199,11 @@ validação básica antes de atualizar a interface.
 | Baixo    | `S` ou `ArrowDown`  |
 | Esquerda | `A` ou `ArrowLeft`  |
 | Direita  | `D` ou `ArrowRight` |
+| Disparar | `Espaço`            |
 
-O movimento é contínuo, aceita duas teclas simultâneas e permanece limitado à área lógica de
-800 × 600. O cliente transmite no máximo 20 atualizações de posição por segundo e não envia novos
-eventos quando o tanque está parado.
+O movimento ocorre célula a célula com animação suave e permanece limitado à grade de 20 × 15.
+O cliente transmite no máximo 20 atualizações de posição por segundo e não envia novos eventos
+quando o tanque está parado.
 
 ## Funcionalidades
 
@@ -212,7 +214,9 @@ eventos quando o tanque está parado.
 - lista de jogadores derivada do servidor;
 - chat limitado a 250 caracteres, sem inserção de HTML;
 - Canvas 2D responsivo e ajustado ao `devicePixelRatio`;
-- movimento contínuo por `requestAnimationFrame`;
+- mapa JSON com paredes destrutíveis e indestrutíveis;
+- movimento e disparos animados por `requestAnimationFrame`;
+- destruição parcial de paredes, explosões e estado de mapa baseado em Angular Signals;
 - renderização do tanque local e dos jogadores remotos;
 - suporte aos eventos de posição e ao estado completo da partida;
 - testes sem abertura de conexão WebSocket real.
@@ -222,7 +226,7 @@ eventos quando o tanque está parado.
 - não há servidor WebSocket neste repositório;
 - não há confirmação real de entrada, persistência de sala ou autenticação;
 - o protocolo ainda precisa ser alinhado com a implementação do backend;
-- colisões, tiros, obstáculos, vidas e pontuação não foram implementados;
+- vidas e pontuação não foram implementados;
 - não há reconexão automática nem restauração de partida após perda de conexão;
 - a identificação local depende de o servidor retornar `id` ou `playerId` em
   `connection:success`.

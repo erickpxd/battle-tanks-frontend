@@ -1,5 +1,6 @@
 import { ChatMessage } from './chat-message.model';
 import { GameState } from './game-state.model';
+import { MapTileChange } from './map-tile-change.model';
 import { Player } from './player.model';
 import { Position } from './position.model';
 
@@ -10,6 +11,7 @@ export type GameEventType =
   | 'player:left'
   | 'player:list'
   | 'player:move'
+  | 'map:tile-destroyed'
   | 'chat:send'
   | 'chat:message'
   | 'game:state'
@@ -34,6 +36,7 @@ export interface ChatSendPayload {
 
 export type PlayerJoinEvent = GameSocketEvent<PlayerJoinPayload>;
 export type PlayerMoveEvent = GameSocketEvent<Position>;
+export type MapTileDestroyedEvent = GameSocketEvent<MapTileChange>;
 export type ChatSendEvent = GameSocketEvent<ChatSendPayload>;
 export type PlayerListEvent = GameSocketEvent<Player[]>;
 export type PlayerUpdatedEvent = GameSocketEvent<Player>;

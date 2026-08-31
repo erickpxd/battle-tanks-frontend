@@ -11,6 +11,7 @@ import {
   PlayerJoinEvent,
 } from '../models/game-event.model';
 import { GameState } from '../models/game-state.model';
+import { MapTileChange } from '../models/map-tile-change.model';
 import { Player } from '../models/player.model';
 import { PlayerDirection, Position } from '../models/position.model';
 
@@ -23,6 +24,7 @@ const GAME_EVENT_TYPES: ReadonlySet<GameEventType> = new Set([
   'player:left',
   'player:list',
   'player:move',
+  'map:tile-destroyed',
   'chat:send',
   'chat:message',
   'game:state',
@@ -43,6 +45,7 @@ export class GameService implements OnDestroy {
   private readonly errorMessageSubject = new BehaviorSubject<string | null>(null);
   private readonly playersSubject = new BehaviorSubject<Player[]>([]);
   private readonly playerMoveSubject = new Subject<Player>();
+  private readonly mapTileDestroyedSubject = new Subject<MapTileChange>();
   private readonly chatMessageSubject = new Subject<ChatMessage>();
   private readonly gameStateSubject = new Subject<GameState>();
   private readonly localPlayerIdSubject = new BehaviorSubject<string | null>(null);
@@ -141,6 +144,17 @@ export class GameService implements OnDestroy {
     this.send({ type: 'player:move', payload: { ...position } });
   }
 
+  sendMapTileDestroyed(change: MapTileChange): void {
+    if (!isMapTileChange(change)) {
+      return;
+    }
+    this.send({ type: 'map:tile-destroyed', payload: { ...change } });
+  }
+
+  onMapTileDestroyed(callback: (change: MapTileChange) => void): Subscription {
+    return this.mapTileDestroyedSubject.subscribe(callback);
+  }
+
   joinRoom(playerName: string): void {
     const name = normalizeText(playerName);
     if (!name) {
@@ -182,6 +196,7 @@ export class GameService implements OnDestroy {
     this.errorMessageSubject.complete();
     this.playersSubject.complete();
     this.playerMoveSubject.complete();
+    this.mapTileDestroyedSubject.complete();
     this.chatMessageSubject.complete();
     this.gameStateSubject.complete();
     this.localPlayerIdSubject.complete();
@@ -260,6 +275,11 @@ export class GameService implements OnDestroy {
           this.upsertPlayer(message.payload);
         }
         break;
+      case 'map:tile-destroyed':
+        if (isMapTileChange(message.payload)) {
+          this.mapTileDestroyedSubject.next(message.payload);
+        }
+        break;
       case 'chat:message':
         if (isChatMessage(message.payload)) {
           this.chatMessageSubject.next(message.payload);
@@ -324,6 +344,16 @@ function isPosition(value: unknown): value is Position {
     Number.isFinite(value['y']) &&
     typeof value['direction'] === 'string' &&
     PLAYER_DIRECTIONS.has(value['direction'] as PlayerDirection)
+  );
+}
+
+function isMapTileChange(value: unknown): value is MapTileChange {
+  return (
+    isRecord(value) &&
+    Number.isInteger(value['column']) &&
+    (value['column'] as number) >= 0 &&
+    Number.isInteger(value['row']) &&
+    (value['row'] as number) >= 0
   );
 }
 
