@@ -215,7 +215,11 @@ quando o tanque está parado.
 - chat limitado a 250 caracteres, sem inserção de HTML;
 - Canvas 2D responsivo e ajustado ao `devicePixelRatio`;
 - mapa JSON com paredes destrutíveis e indestrutíveis;
+- quatro pontos de nascimento definidos no mapa para os jogadores;
+- tanque local com vida, status e posição mantidos em um SignalStore;
 - movimento e disparos animados por `requestAnimationFrame`;
+- colisões de movimento com paredes e outros tanques;
+- renderização de projéteis isolada no `BulletComponent`;
 - destruição parcial de paredes, explosões e estado de mapa baseado em Angular Signals;
 - renderização do tanque local e dos jogadores remotos;
 - suporte aos eventos de posição e ao estado completo da partida;
@@ -226,7 +230,7 @@ quando o tanque está parado.
 - não há servidor WebSocket neste repositório;
 - não há confirmação real de entrada, persistência de sala ou autenticação;
 - o protocolo ainda precisa ser alinhado com a implementação do backend;
-- vidas e pontuação não foram implementados;
+- colisões de projéteis entre tanques e pontuação não foram implementadas;
 - não há reconexão automática nem restauração de partida após perda de conexão;
 - a identificação local depende de o servidor retornar `id` ou `playerId` em
   `connection:success`.

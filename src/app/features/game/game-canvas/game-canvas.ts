@@ -5,26 +5,17 @@ import { GameState } from '../../../core/models/game-state.model';
 import { MapTileChange } from '../../../core/models/map-tile-change.model';
 import { Player } from '../../../core/models/player.model';
 import { PlayerDirection, Position } from '../../../core/models/position.model';
+import { Tank, TankStatus } from '../../../core/models/tank.model';
 import { GameService } from '../../../core/services/game.service';
+import { BulletComponent, BulletState } from '../bullet/bullet.component';
 import { BattleMapSignalStore } from '../map/battle-map.store';
 import { TerrainType, terrainDefinition } from '../map/terrain-type';
-
-interface TankState {
-  position: Position;
-  width: number;
-  height: number;
-}
+import { TankSignalStore } from '../tank/tank.store';
 
 interface TankMovementAnimation {
   from: Readonly<{ x: number; y: number }>;
   to: Readonly<{ x: number; y: number }>;
   startedAt: number;
-}
-
-interface Projectile {
-  x: number;
-  y: number;
-  direction: PlayerDirection;
 }
 
 interface Explosion {
@@ -50,6 +41,7 @@ const KEY_DIRECTIONS: Readonly<Record<string, PlayerDirection>> = {
 
 @Component({
   selector: 'app-game-canvas',
+  imports: [BulletComponent],
   templateUrl: './game-canvas.html',
   styleUrl: './game-canvas.scss',
 })
@@ -57,8 +49,11 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   @ViewChild('gameCanvas', { static: true }) private canvasRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('canvasViewport', { static: true })
   private canvasViewportRef!: ElementRef<HTMLElement>;
+  @ViewChild('bulletRenderer', { static: true })
+  private bulletRenderer!: BulletComponent;
 
   private readonly mapStore = inject(BattleMapSignalStore);
+  readonly tankStore = inject(TankSignalStore);
 
   readonly logicalWidth = 800;
   readonly logicalHeight = 600;
@@ -66,11 +61,11 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   readonly gridColumns = this.battleMap.originalColumns;
   readonly gridRows = this.battleMap.originalRows;
   readonly movementDurationMs = 180;
-  readonly localTank: TankState = {
-    position: { x: 8, y: 1, direction: 'up' },
-    width: 32,
-    height: 32,
-  };
+  readonly tankSize = 32;
+
+  get localTank(): Tank {
+    return this.tankStore.tank();
+  }
 
   private context: CanvasRenderingContext2D | null = null;
   private readonly remotePlayers = new Map<string, Player>();
@@ -79,12 +74,14 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   private frameId?: number;
   private lastFrameTimestamp = performance.now();
   private localTankMovement?: TankMovementAnimation;
-  private projectile?: Projectile;
+  private projectile?: BulletState;
   private explosions: Explosion[] = [];
   private readonly renderedLocalTankPosition: Position = { ...this.localTank.position };
   private lastMovementSentAt = Number.NEGATIVE_INFINITY;
   private lastSentPosition: Position = { ...this.localTank.position };
   private localPlayerId: string | null = null;
+  private latestPlayers: Player[] = [];
+  private localSpawnAssigned = false;
   private usingWindowResize = false;
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
@@ -151,6 +148,11 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       this.gameService.onGameState((state) => this.replaceRemotePlayers(state)),
     );
     this.subscriptions.add(
+      this.gameService.onPlayersUpdated((players) => {
+        this.replaceRemotePlayers({ players });
+      }),
+    );
+    this.subscriptions.add(
       this.gameService.onMapTileDestroyed((change) => {
         if (this.mapStore.destroyTile(change.column, change.row)) {
           this.addExplosionAtTile(change.column, change.row, true);
@@ -162,6 +164,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         this.localPlayerId = playerId;
         if (playerId) {
           this.remotePlayers.delete(playerId);
+          this.selectLocalSpawnFromPlayers();
         }
       }),
     );
@@ -195,7 +198,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   }
 
   fireLocalShot(): boolean {
-    if (this.projectile) {
+    if (this.projectile || !this.tankStore.isActive()) {
       return false;
     }
 
@@ -216,15 +219,15 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   }
 
   private moveLocalTank(direction: PlayerDirection): void {
-    if (this.localTankMovement) {
+    if (this.localTankMovement || !this.tankStore.isActive()) {
       return;
     }
 
+    this.tankStore.turn(direction);
     const movement = directionMovement(direction);
     const nextX = this.localTank.position.x + movement.x;
     const nextY = this.localTank.position.y + movement.y;
 
-    this.localTank.position.direction = direction;
     this.renderedLocalTankPosition.direction = direction;
     if (!this.canOccupyCell(nextX, nextY)) {
       return;
@@ -252,8 +255,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       return;
     }
 
-    this.localTank.position.x = movement.to.x;
-    this.localTank.position.y = movement.to.y;
+    this.tankStore.moveTo(movement.to.x, movement.to.y);
     this.renderedLocalTankPosition.x = movement.to.x;
     this.renderedLocalTankPosition.y = movement.to.y;
     this.localTankMovement = undefined;
@@ -285,7 +287,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     }
   }
 
-  private resolveProjectileCollision(projectile: Projectile, timestamp: number): boolean {
+  private resolveProjectileCollision(projectile: BulletState, timestamp: number): boolean {
     const tileWidth = this.logicalWidth / this.battleMap.expandedColumns;
     const tileHeight = this.logicalHeight / this.battleMap.expandedRows;
     const column = Math.floor(projectile.x / tileWidth);
@@ -349,7 +351,17 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   }
 
   private canOccupyCell(x: number, y: number): boolean {
-    return this.isInsideGrid(x, y) && !this.battleMap.isOriginalCellBlocked(x, y);
+    return (
+      this.isInsideGrid(x, y) &&
+      !this.battleMap.isOriginalCellBlocked(x, y) &&
+      !this.isCellOccupiedByRemoteTank(x, y)
+    );
+  }
+
+  private isCellOccupiedByRemoteTank(x: number, y: number): boolean {
+    return [...this.remotePlayers.values()].some(
+      (player) => player.position.x === x && player.position.y === y,
+    );
   }
 
   private isInsideGrid(x: number, y: number): boolean {
@@ -385,6 +397,8 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   }
 
   private replaceRemotePlayers(state: GameState): void {
+    this.latestPlayers = state.players;
+    this.selectLocalSpawnFromPlayers();
     this.remotePlayers.clear();
     for (const player of state.players) {
       if (!this.isLocalPlayer(player)) {
@@ -395,6 +409,23 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
 
   private isLocalPlayer(player: Player): boolean {
     return this.localPlayerId !== null && player.id === this.localPlayerId;
+  }
+
+  private selectLocalSpawnFromPlayers(): void {
+    if (this.localSpawnAssigned || !this.localPlayerId || this.localTankMovement) {
+      return;
+    }
+
+    const playerIndex = this.latestPlayers.findIndex((player) => player.id === this.localPlayerId);
+    const spawn = this.tankStore.spawns[playerIndex];
+    if (playerIndex < 0 || !spawn || !this.tankStore.selectSpawn(spawn.player)) {
+      return;
+    }
+
+    this.renderedLocalTankPosition.x = spawn.x;
+    this.renderedLocalTankPosition.y = spawn.y;
+    this.renderedLocalTankPosition.direction = spawn.direction;
+    this.localSpawnAssigned = true;
   }
 
   private resizeCanvas(): void {
@@ -429,9 +460,11 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.drawTank(
       context,
       this.renderedLocalTankPosition,
-      this.localTank.width,
-      this.localTank.height,
-      '#f4c542',
+      this.tankSize,
+      this.tankSize,
+      tankColor(this.localTank),
+      undefined,
+      this.localTank.status,
     );
     for (const player of this.remotePlayers.values()) {
       this.drawTank(context, player.position, 32, 38, '#7fcf6b', player.name);
@@ -513,10 +546,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       return;
     }
 
-    context.fillStyle = '#fff4b0';
-    context.fillRect(this.projectile.x - 3, this.projectile.y - 3, 6, 6);
-    context.fillStyle = '#f06436';
-    context.fillRect(this.projectile.x - 1, this.projectile.y - 1, 2, 2);
+    this.bulletRenderer.draw(context, this.projectile);
   }
 
   private drawExplosions(context: CanvasRenderingContext2D, timestamp: number): void {
@@ -538,6 +568,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     height: number,
     color: string,
     name?: string,
+    status: TankStatus = 'active',
   ): void {
     if (!this.isInsideDrawableGrid(position.x, position.y)) {
       return;
@@ -558,16 +589,23 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     context.save();
     context.translate(centerX, centerY);
     context.rotate(directionAngle(position.direction));
-    context.fillStyle = '#20261e';
+    context.fillStyle = status === 'destroyed' ? '#171915' : '#20261e';
     context.fillRect(-width / 2 - 3, -height / 2, 6, height);
     context.fillRect(width / 2 - 3, -height / 2, 6, height);
     context.fillStyle = color;
     context.fillRect(-width / 2 + 5, -height / 2 + 3, width - 10, height - 6);
-    context.fillRect(-2.5, -height / 2 - 11, 5, height / 2 + 12);
+    if (status === 'active') {
+      context.fillRect(-2.5, -height / 2 - 11, 5, height / 2 + 12);
+    }
     context.beginPath();
     context.arc(0, 0, 8, 0, Math.PI * 2);
-    context.fillStyle = '#d9a91f';
+    context.fillStyle = status === 'destroyed' ? '#493a2d' : color;
     context.fill();
+    if (status === 'destroyed') {
+      context.fillStyle = '#9d3e34';
+      context.fillRect(-9, -2, 18, 4);
+      context.fillRect(-2, -9, 4, 18);
+    }
     context.restore();
   }
 
@@ -618,6 +656,21 @@ function projectileImpactTiles(
     return [-1, 0, 1].map((rowOffset) => ({ column, row: row + rowOffset }));
   }
   return [-1, 0, 1].map((columnOffset) => ({ column: column + columnOffset, row }));
+}
+
+function tankColor(tank: Tank): string {
+  if (tank.status === 'destroyed') {
+    return '#393a32';
+  }
+
+  const healthRatio = tank.health / tank.maxHealth;
+  if (healthRatio <= 0.33) {
+    return '#77682e';
+  }
+  if (healthRatio <= 0.66) {
+    return '#b28b31';
+  }
+  return '#f4c542';
 }
 
 function interpolate(from: number, to: number, progress: number): number {

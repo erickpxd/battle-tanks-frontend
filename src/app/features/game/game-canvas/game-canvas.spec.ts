@@ -17,6 +17,7 @@ describe('GameCanvas', () => {
 
   const playerMoves = new Subject<Player>();
   const gameStates = new Subject<GameState>();
+  const players = new BehaviorSubject<Player[]>([]);
   const mapTileChanges = new Subject<{ column: number; row: number }>();
   const localPlayerId = new BehaviorSubject<string | null>(null);
   const gameService = {
@@ -24,6 +25,9 @@ describe('GameCanvas', () => {
     sendMapTileDestroyed: vi.fn(),
     onPlayerMove: vi.fn((callback: (player: Player) => void) => playerMoves.subscribe(callback)),
     onGameState: vi.fn((callback: (state: GameState) => void) => gameStates.subscribe(callback)),
+    onPlayersUpdated: vi.fn((callback: (updatedPlayers: Player[]) => void) =>
+      players.subscribe(callback),
+    ),
     onMapTileDestroyed: vi.fn((callback: (change: { column: number; row: number }) => void) =>
       mapTileChanges.subscribe(callback),
     ),
@@ -59,6 +63,8 @@ describe('GameCanvas', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    localPlayerId.next(null);
+    players.next([]);
     frameCallbacks = new Map();
     nextFrameId = 1;
     frameTime = performance.now() + 60;
@@ -128,7 +134,7 @@ describe('GameCanvas', () => {
   });
 
   it('should keep the local tank inside the 20 by 15 grid', () => {
-    component.localTank.position.x = component.gridColumns - 1;
+    component.tankStore.moveTo(component.gridColumns - 1, component.localTank.position.y);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
 
     expect(component.localTank.position.x).toBe(component.gridColumns - 1);
@@ -155,7 +161,52 @@ describe('GameCanvas', () => {
     expect(component.localTank.position.y).toBe(y);
   });
 
-  it('should send a position only after it changes', () => {
+  it('should not enter a cell occupied by another tank', () => {
+    const { x, y } = component.localTank.position;
+    playerMoves.next({
+      id: 'remote-player',
+      name: 'Ana',
+      position: { x: x + 1, y, direction: 'left' },
+    });
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+
+    expect(component.localTank.position.x).toBe(x);
+    expect(component.localTank.position.y).toBe(y);
+    expect(component.localTank.position.direction).toBe('right');
+  });
+
+  it('should select the local spawn from the shared player order', () => {
+    localPlayerId.next('local-player');
+    players.next([
+      {
+        id: 'remote-player',
+        name: 'Ana',
+        position: { x: 1, y: 1, direction: 'right' },
+      },
+      {
+        id: 'local-player',
+        name: 'Bia',
+        position: { x: 18, y: 1, direction: 'left' },
+      },
+    ]);
+
+    expect(component.localTank.player).toBe(2);
+    expect(component.localTank.position).toEqual({ x: 18, y: 1, direction: 'left' });
+  });
+
+  it('should prevent a destroyed tank from moving or firing', () => {
+    const initialPosition = component.localTank.position;
+    component.tankStore.damage(100);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+
+    expect(component.localTank.status).toBe('destroyed');
+    expect(component.localTank.position).toBe(initialPosition);
+    expect(component.fireLocalShot()).toBe(false);
+  });
+
+  it('should synchronize the turn and the completed movement', () => {
     runNextFrame();
     expect(gameService.sendPlayerMove).not.toHaveBeenCalled();
 
@@ -163,7 +214,17 @@ describe('GameCanvas', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
     finishMovement();
 
-    expect(gameService.sendPlayerMove).toHaveBeenCalledOnce();
+    expect(gameService.sendPlayerMove).toHaveBeenNthCalledWith(1, {
+      x: 1,
+      y: 1,
+      direction: 'up',
+    });
+    expect(gameService.sendPlayerMove).toHaveBeenLastCalledWith({
+      x: 1,
+      y: 0,
+      direction: 'up',
+    });
+    expect(gameService.sendPlayerMove).toHaveBeenCalledTimes(2);
   });
 
   it('should destroy a vertical strip when a horizontal shot hits a wall', () => {
