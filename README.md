@@ -220,7 +220,7 @@ quando o tanque está parado.
 - movimento e disparos animados por `requestAnimationFrame`;
 - colisões de movimento com paredes e outros tanques;
 - renderização de projéteis isolada no `BulletComponent`;
-- destruição parcial de paredes, explosões e estado de mapa baseado em Angular Signals;
+- destruição parcial de paredes e animações de explosão baseadas em Angular Signals;
 - renderização do tanque local e dos jogadores remotos;
 - suporte aos eventos de posição e ao estado completo da partida;
 - testes sem abertura de conexão WebSocket real.

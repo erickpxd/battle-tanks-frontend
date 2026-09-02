@@ -245,6 +245,7 @@ describe('GameCanvas', () => {
       });
     }
     expect(gameService.sendMapTileDestroyed).toHaveBeenCalledTimes(3);
+    expect(component.explosionStore.explosions()).toHaveLength(1);
   });
 
   it('should destroy a horizontal strip when a vertical shot hits a wall', () => {

@@ -8,6 +8,7 @@ import { PlayerDirection, Position } from '../../../core/models/position.model';
 import { Tank, TankStatus } from '../../../core/models/tank.model';
 import { GameService } from '../../../core/services/game.service';
 import { BulletComponent, BulletState } from '../bullet/bullet.component';
+import { ExplosionSignalStore } from '../explosion/explosion.store';
 import { BattleMapSignalStore } from '../map/battle-map.store';
 import { TerrainType, terrainDefinition } from '../map/terrain-type';
 import { TankSignalStore } from '../tank/tank.store';
@@ -18,15 +19,7 @@ interface TankMovementAnimation {
   startedAt: number;
 }
 
-interface Explosion {
-  x: number;
-  y: number;
-  startedAt: number;
-  destructive: boolean;
-}
-
 const PROJECTILE_SPEED = 420;
-const EXPLOSION_DURATION_MS = 320;
 
 const KEY_DIRECTIONS: Readonly<Record<string, PlayerDirection>> = {
   w: 'up',
@@ -54,6 +47,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
 
   private readonly mapStore = inject(BattleMapSignalStore);
   readonly tankStore = inject(TankSignalStore);
+  readonly explosionStore = inject(ExplosionSignalStore);
 
   readonly logicalWidth = 800;
   readonly logicalHeight = 600;
@@ -75,7 +69,6 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   private lastFrameTimestamp = performance.now();
   private localTankMovement?: TankMovementAnimation;
   private projectile?: BulletState;
-  private explosions: Explosion[] = [];
   private readonly renderedLocalTankPosition: Position = { ...this.localTank.position };
   private lastMovementSentAt = Number.NEGATIVE_INFINITY;
   private lastSentPosition: Position = { ...this.localTank.position };
@@ -118,7 +111,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.updateProjectile(timestamp);
     this.updateExplosions(timestamp);
     this.sendMovementWhenNeeded(timestamp);
-    this.draw(timestamp);
+    this.draw();
     this.frameId = requestAnimationFrame(this.gameLoop);
   };
 
@@ -183,6 +176,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     }
     window.removeEventListener('keydown', this.handleKeyDown);
     this.subscriptions.unsubscribe();
+    this.explosionStore.clear();
   }
 
   setCellBlocked(x: number, y: number, blocked = true): void {
@@ -301,7 +295,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     const destroyed = definition.destructible
       ? this.mapStore.destroyTiles(projectileImpactTiles(column, row, projectile.direction))
       : [];
-    this.explosions.push({
+    this.explosionStore.start({
       x: projectile.x,
       y: projectile.y,
       startedAt: timestamp,
@@ -315,15 +309,13 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   }
 
   private updateExplosions(timestamp: number): void {
-    this.explosions = this.explosions.filter(
-      (explosion) => timestamp - explosion.startedAt < EXPLOSION_DURATION_MS,
-    );
+    this.explosionStore.advance(timestamp);
   }
 
   private addExplosionAtTile(column: number, row: number, destructive: boolean): void {
     const tileWidth = this.logicalWidth / this.battleMap.expandedColumns;
     const tileHeight = this.logicalHeight / this.battleMap.expandedRows;
-    this.explosions.push({
+    this.explosionStore.start({
       x: column * tileWidth + tileWidth / 2,
       y: row * tileHeight + tileHeight / 2,
       startedAt: performance.now(),
@@ -445,7 +437,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.draw();
   }
 
-  private draw(timestamp = performance.now()): void {
+  private draw(): void {
     if (!this.context) {
       return;
     }
@@ -470,7 +462,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       this.drawTank(context, player.position, 32, 38, '#7fcf6b', player.name);
     }
     this.drawProjectile(context);
-    this.drawExplosions(context, timestamp);
+    this.drawExplosions(context);
   }
 
   private drawGrid(context: CanvasRenderingContext2D): void {
@@ -549,11 +541,10 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.bulletRenderer.draw(context, this.projectile);
   }
 
-  private drawExplosions(context: CanvasRenderingContext2D, timestamp: number): void {
-    for (const explosion of this.explosions) {
-      const progress = clamp((timestamp - explosion.startedAt) / EXPLOSION_DURATION_MS, 0, 1);
-      const radius = (explosion.destructive ? 18 : 10) * (0.45 + progress);
-      context.fillStyle = progress < 0.5 ? '#fff08a' : '#e24b2d';
+  private drawExplosions(context: CanvasRenderingContext2D): void {
+    for (const explosion of this.explosionStore.explosions()) {
+      const radius = (explosion.destructive ? 18 : 10) * (0.45 + explosion.progress);
+      context.fillStyle = explosion.progress < 0.5 ? '#fff08a' : '#e24b2d';
       context.fillRect(explosion.x - radius / 2, explosion.y - 3, radius, 6);
       context.fillRect(explosion.x - 3, explosion.y - radius / 2, 6, radius);
       context.fillStyle = '#f39a35';
