@@ -15,6 +15,7 @@ import { GameCanvas } from './game-canvas/game-canvas';
 export class Game implements OnInit, OnDestroy {
   playerName = '';
   connectionStatus: ConnectionStatus = 'disconnected';
+  isTutorial = false;
 
   private readonly subscriptions = new Subscription();
 
@@ -24,9 +25,15 @@ export class Game implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.isTutorial = this.router.url.startsWith('/tutorial');
+    if (this.isTutorial) {
+      this.playerName = 'Treinamento';
+      return;
+    }
+
     this.playerName = (sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey) ?? '').trim();
     if (!this.playerName) {
-      void this.router.navigate(['/waiting-room']);
+      void this.router.navigate(['/menu']);
       return;
     }
 
@@ -42,7 +49,7 @@ export class Game implements OnInit, OnDestroy {
   }
 
   backToWaitingRoom(): void {
-    void this.router.navigate(['/waiting-room']);
+    void this.router.navigate([this.isTutorial ? '/menu' : '/waiting-room']);
   }
 
   connectionLabel(): string {

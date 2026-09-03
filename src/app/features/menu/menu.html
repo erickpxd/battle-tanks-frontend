@@ -1,0 +1,36 @@
+<main class="menu-page page-shell">
+  <header class="menu-header">
+    <h1>
+      <img src="assets/logo-cima.png" alt="Battle City" width="1743" height="982" />
+    </h1>
+  </header>
+
+  <section class="menu-panel" aria-labelledby="menu-title">
+    <p class="menu-kicker">Quartel-general</p>
+    <h2 id="menu-title">Menu principal</h2>
+
+    <form (ngSubmit)="enterWaitingRoom()">
+      <label for="player-name">Nome do jogador</label>
+      <input
+        id="player-name"
+        name="playerName"
+        type="text"
+        maxlength="40"
+        autocomplete="nickname"
+        placeholder="Digite seu nome"
+        [(ngModel)]="playerName"
+      />
+      @if (nameError) {
+        <p class="field-error" role="alert">{{ nameError }}</p>
+      }
+
+      <button type="submit" class="button menu-action">Entrar na sala</button>
+    </form>
+
+    <div class="menu-divider" aria-hidden="true"><span>ou</span></div>
+
+    <button type="button" class="button button--secondary menu-action" (click)="openTutorial()">
+      Tutorial
+    </button>
+  </section>
+</main>

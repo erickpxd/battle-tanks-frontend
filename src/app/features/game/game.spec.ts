@@ -16,6 +16,7 @@ describe('Game', () => {
 
   beforeEach(async () => {
     sessionStorage.clear();
+    status.next('disconnected');
     vi.clearAllMocks();
     await TestBed.configureTestingModule({
       imports: [Game],
@@ -40,14 +41,29 @@ describe('Game', () => {
     expect(gameService.joinRoom).toHaveBeenCalledWith('Erick');
   });
 
-  it('should redirect to the waiting room without a saved player', () => {
+  it('should redirect to the menu without a saved player', () => {
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const fixture = TestBed.createComponent(Game);
 
     fixture.detectChanges();
 
-    expect(navigate).toHaveBeenCalledWith(['/waiting-room']);
+    expect(navigate).toHaveBeenCalledWith(['/menu']);
     expect(gameService.connect).not.toHaveBeenCalled();
+  });
+
+  it('should open the tutorial locally without a saved player', () => {
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'url', 'get').mockReturnValue('/tutorial');
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(Game);
+
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.isTutorial).toBe(true);
+    expect(fixture.componentInstance.playerName).toBe('Treinamento');
+    expect(gameService.connect).not.toHaveBeenCalled();
+    expect(gameService.joinRoom).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

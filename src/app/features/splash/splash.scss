@@ -1,0 +1,21 @@
+:host {
+  display: block;
+}
+
+.splash {
+  background: #000 url('/assets/walppaper.png') center / cover no-repeat;
+  cursor: pointer;
+  min-height: 100dvh;
+  width: 100%;
+}
+
+.splash:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+@media (max-aspect-ratio: 4 / 5) {
+  .splash {
+    background-size: contain;
+  }
+}

@@ -1,0 +1,84 @@
+:host {
+  display: block;
+}
+
+.menu-page {
+  align-content: center;
+  display: grid;
+  justify-items: center;
+  padding-block: 2rem;
+}
+
+.menu-header {
+  text-align: center;
+  width: min(100%, 34rem);
+
+  h1 {
+    margin: 0;
+  }
+
+  img {
+    display: block;
+    height: auto;
+    width: 100%;
+  }
+}
+
+.menu-panel {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  margin-top: 1rem;
+  padding: 1.5rem;
+  width: min(100%, 31rem);
+
+  h2 {
+    font-size: 1.25rem;
+    margin: 0.25rem 0 1.4rem;
+    text-transform: uppercase;
+  }
+
+  label {
+    color: var(--text-muted);
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.45rem;
+  }
+}
+
+.menu-kicker {
+  color: var(--accent-soft);
+  font-size: 0.75rem;
+  font-weight: 800;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.field-error {
+  color: var(--danger-soft);
+  font-size: 0.82rem;
+  margin: 0.5rem 0 0;
+}
+
+.menu-action {
+  margin-top: 0.8rem;
+  width: 100%;
+}
+
+.menu-divider {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  font-size: 0.75rem;
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+  text-transform: uppercase;
+
+  &::before,
+  &::after {
+    background: var(--border);
+    content: '';
+    height: 1px;
+    width: 100%;
+  }
+}

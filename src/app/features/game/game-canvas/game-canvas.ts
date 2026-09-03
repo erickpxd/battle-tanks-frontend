@@ -35,6 +35,7 @@ const KEY_DIRECTIONS: Readonly<Record<string, PlayerDirection>> = {
 @Component({
   selector: 'app-game-canvas',
   imports: [BulletComponent],
+  providers: [BattleMapSignalStore, TankSignalStore, ExplosionSignalStore],
   templateUrl: './game-canvas.html',
   styleUrl: './game-canvas.scss',
 })
