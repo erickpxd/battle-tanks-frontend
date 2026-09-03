@@ -40,6 +40,15 @@ describe('WaitingRoom', () => {
     expect(gameService.connect).toHaveBeenCalledOnce();
   });
 
+  it('should display the vertical Battle City logo', () => {
+    const fixture = TestBed.createComponent(WaitingRoom);
+    fixture.detectChanges();
+
+    const logo = fixture.nativeElement.querySelector('.brand-logo img') as HTMLImageElement | null;
+    expect(logo?.getAttribute('src')).toBe('assets/logovertical.png');
+    expect(logo?.getAttribute('alt')).toBe('Battle City');
+  });
+
   it('should reject an empty player name', () => {
     const fixture = TestBed.createComponent(WaitingRoom);
     fixture.detectChanges();

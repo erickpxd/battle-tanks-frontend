@@ -6,12 +6,16 @@
   margin-bottom: 1.5rem;
 
   h1 {
-    color: var(--accent);
-    font-size: clamp(2.4rem, 8vw, 4.5rem);
-    letter-spacing: 0.08em;
-    line-height: 1;
     margin: 0.2rem 0 0.6rem;
-    text-transform: uppercase;
+    max-width: 34rem;
+    width: 100%;
+
+    img {
+      display: block;
+      height: auto;
+      mix-blend-mode: screen;
+      width: 100%;
+    }
   }
 
   > p:last-of-type {

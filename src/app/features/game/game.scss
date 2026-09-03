@@ -10,11 +10,16 @@
   margin-bottom: 1rem;
 
   h1 {
-    color: var(--accent);
-    font-size: clamp(1.8rem, 5vw, 3rem);
-    letter-spacing: 0.08em;
     margin: 0.15rem 0;
-    text-transform: uppercase;
+    max-width: 22rem;
+    width: min(100%, 22rem);
+
+    img {
+      display: block;
+      height: auto;
+      mix-blend-mode: screen;
+      width: 100%;
+    }
   }
 
   p {
