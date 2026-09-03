@@ -3,17 +3,19 @@
 }
 
 .hero {
+  display: grid;
+  justify-items: center;
   margin-bottom: 1.5rem;
+  text-align: center;
 
   h1 {
-    margin: 0.2rem 0 0.6rem;
-    max-width: 34rem;
+    margin: 0;
+    max-width: 31rem;
     width: 100%;
 
     img {
       display: block;
       height: auto;
-      mix-blend-mode: screen;
       width: 100%;
     }
   }
@@ -28,33 +30,31 @@
   color: var(--accent-soft);
   font-size: 0.75rem;
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0;
   margin: 0;
   text-transform: uppercase;
 }
 
 .connection {
   align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid var(--border);
   display: inline-flex;
   font-size: 0.82rem;
   font-weight: 700;
   gap: 0.5rem;
   margin-top: 1rem;
   padding: 0.45rem 0.75rem;
+  text-transform: uppercase;
 
   span {
     background: var(--danger);
-    border-radius: 50%;
-    height: 0.6rem;
-    width: 0.6rem;
+    height: 0.7rem;
+    width: 0.7rem;
   }
 
   &--connected span {
     background: var(--success);
-    box-shadow: 0 0 0.7rem var(--success);
   }
 
   &--connecting span {
@@ -64,8 +64,8 @@
 
 .notice {
   align-items: center;
-  background: color-mix(in srgb, var(--danger) 12%, var(--panel));
-  border: 1px solid var(--danger);
+  background: #1d0908;
+  border: 2px solid var(--danger);
   display: flex;
   gap: 1rem;
   justify-content: space-between;
@@ -84,15 +84,15 @@
 }
 
 .panel {
-  background: linear-gradient(145deg, var(--panel), var(--panel-strong));
-  border: 1px solid var(--border);
-  box-shadow: 0 1rem 3rem rgb(0 0 0 / 20%);
+  background: var(--panel);
+  border: 2px solid var(--border);
   min-width: 0;
   padding: clamp(1rem, 3vw, 1.5rem);
 
   h2 {
     font-size: 1.1rem;
     margin: 0 0 0.8rem;
+    text-transform: uppercase;
   }
 }
 
@@ -141,7 +141,7 @@ label {
 
 .players-heading > span {
   background: var(--surface);
-  border-radius: 999px;
+  border: 1px solid var(--border);
   padding: 0.2rem 0.5rem;
 }
 
@@ -181,7 +181,7 @@ label {
 
 .chat-history {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   height: 20rem;
   margin: 1rem 0;
   overflow-y: auto;

@@ -3,21 +3,19 @@
 }
 
 .game-header {
-  align-items: flex-end;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
+  display: grid;
+  justify-items: center;
   margin-bottom: 1rem;
+  text-align: center;
 
   h1 {
-    margin: 0.15rem 0;
-    max-width: 22rem;
-    width: min(100%, 22rem);
+    margin: 0;
+    max-width: 28rem;
+    width: min(100%, 28rem);
 
     img {
       display: block;
       height: auto;
-      mix-blend-mode: screen;
       width: 100%;
     }
   }
@@ -28,12 +26,16 @@
   }
 }
 
-.eyebrow {
-  color: var(--accent-soft) !important;
-  font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+.match-bar {
+  align-items: center;
+  border-bottom: 2px solid var(--border);
+  border-top: 2px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0;
+  text-align: left;
+  width: 100%;
 }
 
 .header-actions {
@@ -43,30 +45,30 @@
 }
 
 .status {
-  border: 1px solid var(--danger);
-  border-radius: 999px;
+  background: var(--surface);
+  border-left: 5px solid var(--danger);
   color: var(--danger-soft);
   font-size: 0.75rem;
   font-weight: 700;
   padding: 0.4rem 0.65rem;
+  text-transform: uppercase;
 
   &--connected {
-    border-color: var(--success);
+    border-left-color: var(--success);
     color: var(--success);
   }
 }
 
 .battle-panel {
   background: var(--panel);
-  border: 1px solid var(--border);
-  box-shadow: 0 1rem 3rem rgb(0 0 0 / 30%);
+  border: 2px solid var(--border);
   padding: clamp(0.5rem, 2vw, 1rem);
 }
 
 .controls {
   align-items: center;
   background: var(--panel);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem 1.2rem;
@@ -85,7 +87,7 @@
 
 kbd {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-bottom-width: 2px;
   color: var(--text);
   font-family: inherit;
@@ -100,9 +102,10 @@ kbd {
 }
 
 @media (max-width: 650px) {
-  .game-header {
+  .match-bar {
     align-items: stretch;
     flex-direction: column;
+    gap: 0.65rem;
   }
 
   .header-actions {

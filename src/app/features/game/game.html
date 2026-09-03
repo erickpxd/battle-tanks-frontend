@@ -1,21 +1,20 @@
 <main class="game-page page-shell">
   <header class="game-header">
-    <div>
-      <p class="eyebrow">Campo de batalha</p>
-      <h1 class="brand-logo">
-        <img src="assets/logovertical.png" alt="Battle City" width="1983" height="793" />
-      </h1>
+    <h1 class="brand-logo">
+      <img src="assets/logovertical.png" alt="Battle City" width="1983" height="793" />
+    </h1>
+    <div class="match-bar">
       <p>
         Comandante: <strong>{{ playerName }}</strong>
       </p>
-    </div>
-    <div class="header-actions">
-      <span class="status" [class.status--connected]="connectionStatus === 'connected'">
-        {{ connectionLabel() }}
-      </span>
-      <button type="button" class="button button--secondary" (click)="backToWaitingRoom()">
-        Voltar à sala
-      </button>
+      <div class="header-actions">
+        <span class="status" [class.status--connected]="connectionStatus === 'connected'">
+          {{ connectionLabel() }}
+        </span>
+        <button type="button" class="button button--secondary" (click)="backToWaitingRoom()">
+          Voltar à sala
+        </button>
+      </div>
     </div>
   </header>
 
