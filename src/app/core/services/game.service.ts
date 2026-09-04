@@ -40,6 +40,7 @@ export class GameService implements OnDestroy {
   private socket?: WebSocketSubject<unknown>;
   private socketSubscription?: Subscription;
   private pendingPlayerName: string | null = null;
+  private joinedPlayerName: string | null = null;
 
   private readonly connectionStatusSubject = new BehaviorSubject<ConnectionStatus>('disconnected');
   private readonly errorMessageSubject = new BehaviorSubject<string | null>(null);
@@ -124,6 +125,8 @@ export class GameService implements OnDestroy {
     const subscription = this.socketSubscription;
     this.socket = undefined;
     this.socketSubscription = undefined;
+    this.pendingPlayerName = null;
+    this.joinedPlayerName = null;
 
     if (socket) {
       socket.complete();
@@ -157,7 +160,7 @@ export class GameService implements OnDestroy {
 
   joinRoom(playerName: string): void {
     const name = normalizeText(playerName);
-    if (!name) {
+    if (!name || (name === this.joinedPlayerName && this.connectionStatusSubject.value === 'connected')) {
       return;
     }
 
@@ -216,6 +219,7 @@ export class GameService implements OnDestroy {
       payload: { name: this.pendingPlayerName },
     };
     if (this.send(event)) {
+      this.joinedPlayerName = this.pendingPlayerName;
       this.pendingPlayerName = null;
     }
   }
@@ -325,6 +329,7 @@ export class GameService implements OnDestroy {
     }
     this.socket = undefined;
     this.socketSubscription = undefined;
+    this.joinedPlayerName = null;
   }
 }
 

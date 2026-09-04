@@ -20,9 +20,26 @@
     }
   }
 
-  > p:last-of-type {
+}
+
+.room-status {
+  align-items: center;
+  border-bottom: 2px solid var(--border);
+  border-top: 2px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0;
+  text-align: left;
+  width: 100%;
+
+  p {
     color: var(--text-muted);
     margin: 0;
+  }
+
+  .connection {
+    margin-top: 0;
   }
 }
 
@@ -96,30 +113,9 @@
   }
 }
 
-label {
-  color: var(--text-muted);
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 700;
-  margin-bottom: 0.4rem;
-}
-
-.inline-form,
 .chat-form {
   display: flex;
   gap: 0.5rem;
-}
-
-.field-error {
-  color: var(--danger-soft);
-  font-size: 0.82rem;
-  margin: 0.5rem 0 0;
-}
-
-.saved-name {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  margin: 0.7rem 0 0;
 }
 
 .players-heading,
@@ -171,8 +167,13 @@ label {
 }
 
 .game-button {
-  margin-top: 1.4rem;
   width: 100%;
+}
+
+.room-actions {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1.4rem;
 }
 
 .chat-heading {
@@ -222,9 +223,14 @@ label {
   }
 
   .notice,
-  .inline-form,
   .chat-form {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .room-status {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.6rem;
   }
 }

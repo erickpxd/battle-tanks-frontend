@@ -3,9 +3,12 @@
     <h1 class="brand-logo">
       <img src="assets/logovertical.png" alt="Battle City" width="1983" height="793" />
     </h1>
-    <div class="connection" [class]="'connection connection--' + connectionStatus">
-      <span aria-hidden="true"></span>
-      {{ connectionLabel() }}
+    <div class="room-status">
+      <p>Comandante: <strong>{{ savedPlayerName }}</strong></p>
+      <div class="connection" [class]="'connection connection--' + connectionStatus">
+        <span aria-hidden="true"></span>
+        {{ connectionLabel() }}
+      </div>
     </div>
   </header>
 
@@ -19,38 +22,17 @@
   }
 
   <div class="room-grid">
-    <section class="panel join-panel">
-      <h2>Identificação</h2>
-      <form (ngSubmit)="submitPlayer()">
-        <label for="player-name">Nome do jogador</label>
-        <div class="inline-form">
-          <input
-            id="player-name"
-            name="playerName"
-            type="text"
-            maxlength="40"
-            autocomplete="nickname"
-            placeholder="Digite seu nome"
-            [(ngModel)]="playerName"
-          />
-          <button type="submit" class="button">Entrar na sala</button>
-        </div>
-        @if (nameError) {
-          <p class="field-error" role="alert">{{ nameError }}</p>
-        }
-        @if (savedPlayerName) {
-          <p class="saved-name">
-            Jogador atual: <strong>{{ savedPlayerName }}</strong>
-          </p>
-        }
-      </form>
-
+    <section class="panel players-panel">
       <div class="players-heading">
-        <h2>Jogadores conectados</h2>
-        <span>{{ players.length }}</span>
+        <div>
+          <p class="eyebrow">Preparação</p>
+          <h2>Sala de espera</h2>
+        </div>
+        <span>{{ players.length }}/4</span>
       </div>
+
       @if (players.length === 0) {
-        <p class="empty-state">Nenhum jogador conectado.</p>
+        <p class="empty-state">Aguardando jogadores conectados.</p>
       } @else {
         <ul class="player-list">
           @for (player of players; track player.id) {
@@ -59,14 +41,19 @@
         </ul>
       }
 
-      <button
-        type="button"
-        class="button game-button"
-        [disabled]="!savedPlayerName"
-        (click)="openGame()"
-      >
-        Abrir campo de batalha
-      </button>
+      <div class="room-actions">
+        <button
+          type="button"
+          class="button game-button"
+          [disabled]="connectionStatus !== 'connected'"
+          (click)="openGame()"
+        >
+          Abrir campo de batalha
+        </button>
+        <button type="button" class="button button--secondary" (click)="leaveRoom()">
+          Sair da sala
+        </button>
+      </div>
     </section>
 
     <section class="panel chat-panel">
@@ -80,10 +67,7 @@
 
       <div #chatHistory class="chat-history" aria-live="polite">
         @if (messages.length === 0) {
-          <p class="empty-state">
-            O chat depende da conexão WebSocket. As mensagens confirmadas pelo servidor aparecerão
-            aqui.
-          </p>
+          <p class="empty-state">As mensagens confirmadas pelo servidor aparecerão aqui.</p>
         } @else {
           @for (message of messages; track message.id ?? $index) {
             <article class="chat-message">

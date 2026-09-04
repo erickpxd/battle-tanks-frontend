@@ -18,9 +18,7 @@ import { ConnectionStatus, GameService } from '../../core/services/game.service'
 export class WaitingRoom implements OnInit, OnDestroy {
   @ViewChild('chatHistory') private chatHistory?: ElementRef<HTMLElement>;
 
-  playerName = '';
   chatText = '';
-  nameError = '';
   connectionError: string | null = null;
   connectionStatus: ConnectionStatus = 'disconnected';
   players: Player[] = [];
@@ -37,7 +35,10 @@ export class WaitingRoom implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.savedPlayerName = sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey) ?? '';
-    this.playerName = this.savedPlayerName;
+    if (!normalizeName(this.savedPlayerName)) {
+      void this.router.navigate(['/menu']);
+      return;
+    }
 
     this.subscriptions.add(
       this.gameService.connectionStatus$.subscribe((status) => {
@@ -61,29 +62,15 @@ export class WaitingRoom implements OnInit, OnDestroy {
       }),
     );
 
+    this.gameService.joinRoom(this.savedPlayerName);
     this.gameService.connect();
-  }
-
-  submitPlayer(): void {
-    const name = normalizeName(this.playerName);
-    if (!name) {
-      this.nameError = 'Informe um nome para entrar na sala.';
-      return;
-    }
-
-    this.nameError = '';
-    this.playerName = name;
-    this.savedPlayerName = name;
-    sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, name);
-    this.gameService.connect();
-    this.gameService.joinRoom(name);
   }
 
   retryConnection(): void {
-    this.gameService.connect();
     if (this.savedPlayerName) {
       this.gameService.joinRoom(this.savedPlayerName);
     }
+    this.gameService.connect();
   }
 
   sendChat(): void {
@@ -97,11 +84,16 @@ export class WaitingRoom implements OnInit, OnDestroy {
   }
 
   openGame(): void {
-    if (!normalizeName(this.savedPlayerName)) {
-      this.nameError = 'Salve um nome antes de abrir o jogo.';
+    if (this.connectionStatus !== 'connected') {
       return;
     }
     void this.router.navigate(['/game']);
+  }
+
+  leaveRoom(): void {
+    this.gameService.disconnect();
+    sessionStorage.removeItem(GAME_CONFIG.playerNameStorageKey);
+    void this.router.navigate(['/menu']);
   }
 
   connectionLabel(): string {

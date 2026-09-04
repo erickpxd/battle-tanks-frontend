@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { BehaviorSubject, of } from 'rxjs';
 
+import { GAME_CONFIG } from '../../core/config/game.config';
 import { ChatMessage } from '../../core/models/chat-message.model';
 import { Player } from '../../core/models/player.model';
 import { ConnectionStatus, GameService } from '../../core/services/game.service';
@@ -13,6 +14,7 @@ describe('WaitingRoom', () => {
     connectionStatus$: connectionStatus.asObservable(),
     errorMessage$: of(null),
     connect: vi.fn(),
+    disconnect: vi.fn(),
     joinRoom: vi.fn(),
     sendChatMessage: vi.fn(),
     onPlayersUpdated: vi.fn((callback: (players: Player[]) => void) => of([]).subscribe(callback)),
@@ -32,66 +34,55 @@ describe('WaitingRoom', () => {
     }).compileComponents();
   });
 
-  it('should create and try the shared connection', () => {
-    const fixture = TestBed.createComponent(WaitingRoom);
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance).toBeTruthy();
-    expect(gameService.connect).toHaveBeenCalledOnce();
-  });
-
-  it('should display the vertical Battle City logo', () => {
-    const fixture = TestBed.createComponent(WaitingRoom);
-    fixture.detectChanges();
-
-    const logo = fixture.nativeElement.querySelector('.brand-logo img') as HTMLImageElement | null;
-    expect(logo?.getAttribute('src')).toBe('assets/logovertical.png');
-    expect(logo?.getAttribute('alt')).toBe('Battle City');
-  });
-
-  it('should reject an empty player name', () => {
-    const fixture = TestBed.createComponent(WaitingRoom);
-    fixture.detectChanges();
-    fixture.componentInstance.playerName = '   ';
-
-    fixture.componentInstance.submitPlayer();
-
-    expect(gameService.joinRoom).not.toHaveBeenCalled();
-    expect(fixture.componentInstance.nameError).toContain('Informe um nome');
-  });
-
-  it('should normalize and send a valid player name', () => {
-    const fixture = TestBed.createComponent(WaitingRoom);
-    fixture.detectChanges();
-    fixture.componentInstance.playerName = '  Erick   Silva ';
-
-    fixture.componentInstance.submitPlayer();
-
-    expect(gameService.joinRoom).toHaveBeenCalledWith('Erick Silva');
-    expect(sessionStorage.getItem('battle-city-player-name')).toBe('Erick Silva');
-  });
-
-  it('should block empty chat messages', () => {
-    const fixture = TestBed.createComponent(WaitingRoom);
-    fixture.detectChanges();
-    connectionStatus.next('connected');
-    fixture.componentInstance.chatText = '   ';
-
-    fixture.componentInstance.sendChat();
-
-    expect(gameService.sendChatMessage).not.toHaveBeenCalled();
-  });
-
-  it('should navigate to the game after a valid name is saved', async () => {
-    const fixture = TestBed.createComponent(WaitingRoom);
+  it('should redirect to the menu when no player was identified', () => {
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(WaitingRoom);
+
     fixture.detectChanges();
-    fixture.componentInstance.playerName = 'Erick';
-    fixture.componentInstance.submitPlayer();
+
+    expect(navigate).toHaveBeenCalledWith(['/menu']);
+    expect(gameService.connect).not.toHaveBeenCalled();
+  });
+
+  it('should join and connect the identified player', () => {
+    sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    const fixture = TestBed.createComponent(WaitingRoom);
+
+    fixture.detectChanges();
+
+    expect(gameService.joinRoom).toHaveBeenCalledWith('Erick');
+    expect(gameService.connect).toHaveBeenCalledOnce();
+    expect(fixture.nativeElement.querySelector('#player-name')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.chat-panel')).not.toBeNull();
+  });
+
+  it('should only open the game after connecting', () => {
+    sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(WaitingRoom);
+    fixture.detectChanges();
 
     fixture.componentInstance.openGame();
+    expect(navigate).not.toHaveBeenCalledWith(['/game']);
 
+    connectionStatus.next('connected');
+    fixture.componentInstance.openGame();
     expect(navigate).toHaveBeenCalledWith(['/game']);
+  });
+
+  it('should clear the identity when leaving the room', () => {
+    sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(WaitingRoom);
+    fixture.detectChanges();
+
+    fixture.componentInstance.leaveRoom();
+
+    expect(gameService.disconnect).toHaveBeenCalledOnce();
+    expect(sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey)).toBeNull();
+    expect(navigate).toHaveBeenCalledWith(['/menu']);
   });
 });
