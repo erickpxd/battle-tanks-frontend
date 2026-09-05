@@ -33,4 +33,15 @@ describe('Splash', () => {
     expect(image.getAttribute('alt')).toBe('Battle City');
     fixture.destroy();
   });
+
+  it('should display a loading indicator', () => {
+    const fixture = TestBed.createComponent(Splash);
+    fixture.detectChanges();
+
+    const loading = fixture.nativeElement.querySelector('.loading') as HTMLElement;
+
+    expect(loading.getAttribute('role')).toBe('status');
+    expect(loading.textContent).toContain('Carregando');
+    fixture.destroy();
+  });
 });
