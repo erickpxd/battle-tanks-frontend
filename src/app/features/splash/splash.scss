@@ -3,10 +3,33 @@
 }
 
 .splash {
-  background: #000 url('/assets/walppaper.png') center / cover no-repeat;
+  align-items: center;
+  background: #000;
   cursor: pointer;
+  display: flex;
+  justify-content: center;
   min-height: 100dvh;
+  overflow: hidden;
+  position: relative;
   width: 100%;
+
+  &::before {
+    background: #000 url('/assets/walppaper.png') center / cover no-repeat;
+    content: '';
+    filter: blur(24px) brightness(0.42);
+    inset: -32px;
+    position: absolute;
+  }
+
+  img {
+    display: block;
+    height: auto;
+    max-height: 92dvh;
+    max-width: 92vw;
+    object-fit: contain;
+    position: relative;
+    width: auto;
+  }
 }
 
 .splash:focus-visible {
@@ -14,8 +37,9 @@
   outline-offset: -3px;
 }
 
-@media (max-aspect-ratio: 4 / 5) {
-  .splash {
-    background-size: contain;
+@media (max-width: 600px) {
+  .splash img {
+    max-height: 88dvh;
+    max-width: 94vw;
   }
 }

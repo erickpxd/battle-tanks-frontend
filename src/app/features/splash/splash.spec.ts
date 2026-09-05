@@ -22,4 +22,15 @@ describe('Splash', () => {
     expect(navigate).toHaveBeenCalledWith(['/menu']);
     fixture.destroy();
   });
+
+  it('should display the complete wallpaper as the splash artwork', () => {
+    const fixture = TestBed.createComponent(Splash);
+    fixture.detectChanges();
+
+    const image = fixture.nativeElement.querySelector('.splash img') as HTMLImageElement;
+
+    expect(image.getAttribute('src')).toBe('assets/walppaper.png');
+    expect(image.getAttribute('alt')).toBe('Battle City');
+    fixture.destroy();
+  });
 });
