@@ -47,6 +47,7 @@ describe('WaitingRoom', () => {
 
   it('should join and connect the identified player', () => {
     sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, 'ABC123');
     const fixture = TestBed.createComponent(WaitingRoom);
 
     fixture.detectChanges();
@@ -59,6 +60,7 @@ describe('WaitingRoom', () => {
 
   it('should only open the game after connecting', () => {
     sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, 'ABC123');
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const fixture = TestBed.createComponent(WaitingRoom);
@@ -74,6 +76,7 @@ describe('WaitingRoom', () => {
 
   it('should clear the identity when leaving the room', () => {
     sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, 'ABC123');
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const fixture = TestBed.createComponent(WaitingRoom);
@@ -83,6 +86,7 @@ describe('WaitingRoom', () => {
 
     expect(gameService.disconnect).toHaveBeenCalledOnce();
     expect(sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey)).toBeNull();
+    expect(sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey)).toBeNull();
     expect(navigate).toHaveBeenCalledWith(['/menu']);
   });
 });

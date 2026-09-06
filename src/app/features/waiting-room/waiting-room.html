@@ -4,7 +4,10 @@
       <img src="assets/logovertical.png" alt="Battle City" width="1983" height="793" />
     </h1>
     <div class="room-status">
-      <p>Comandante: <strong>{{ savedPlayerName }}</strong></p>
+      <p>
+        Sala: <strong>{{ savedRoomCode }}</strong> · Comandante:
+        <strong>{{ savedPlayerName }}</strong>
+      </p>
       <div class="connection" [class]="'connection connection--' + connectionStatus">
         <span aria-hidden="true"></span>
         {{ connectionLabel() }}

@@ -65,6 +65,16 @@
   width: 100%;
 }
 
+.room-code-form {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+
+  input {
+    text-transform: uppercase;
+  }
+}
+
 .menu-divider {
   align-items: center;
   color: var(--text-muted);
@@ -80,5 +90,15 @@
     content: '';
     height: 1px;
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .room-code-form {
+    grid-template-columns: 1fr;
+
+    .button {
+      width: 100%;
+    }
   }
 }

@@ -24,6 +24,7 @@ export class WaitingRoom implements OnInit, OnDestroy {
   players: Player[] = [];
   messages: ChatMessage[] = [];
   savedPlayerName = '';
+  savedRoomCode = '';
 
   private readonly subscriptions = new Subscription();
   private destroyed = false;
@@ -35,7 +36,8 @@ export class WaitingRoom implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.savedPlayerName = sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey) ?? '';
-    if (!normalizeName(this.savedPlayerName)) {
+    this.savedRoomCode = sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey) ?? '';
+    if (!normalizeName(this.savedPlayerName) || !this.savedRoomCode.trim()) {
       void this.router.navigate(['/menu']);
       return;
     }
@@ -93,6 +95,7 @@ export class WaitingRoom implements OnInit, OnDestroy {
   leaveRoom(): void {
     this.gameService.disconnect();
     sessionStorage.removeItem(GAME_CONFIG.playerNameStorageKey);
+    sessionStorage.removeItem(GAME_CONFIG.roomCodeStorageKey);
     void this.router.navigate(['/menu']);
   }
 
