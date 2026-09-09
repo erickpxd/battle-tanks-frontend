@@ -1,5 +1,7 @@
 import { Routes } from '@angular/router';
 
+import { authGuard } from './core/guards/auth.guard';
+
 export const routes: Routes = [
   {
     path: '',
@@ -7,11 +9,16 @@ export const routes: Routes = [
     loadComponent: () => import('./features/splash/splash').then((component) => component.Splash),
   },
   {
+    path: 'auth',
+    loadComponent: () => import('./features/auth/auth').then((component) => component.Auth),
+  },
+  {
     path: 'menu',
     loadComponent: () => import('./features/menu/menu').then((component) => component.Menu),
   },
   {
     path: 'waiting-room',
+    canActivate: [authGuard],
     loadComponent: () =>
       import('./features/waiting-room/waiting-room').then((component) => component.WaitingRoom),
   },
