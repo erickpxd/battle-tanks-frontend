@@ -1,0 +1,121 @@
+<main class="auth-page page-shell">
+  <header class="auth-header">
+    <h1>
+      <img src="assets/logo-cima.png" alt="Battle City" width="1743" height="982" />
+    </h1>
+  </header>
+
+  <section class="auth-panel" aria-labelledby="auth-title">
+    <div class="auth-tabs" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="activeTab === 'login'"
+        [class.active]="activeTab === 'login'"
+        (click)="switchTab('login')"
+      >
+        Entrar
+      </button>
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="activeTab === 'register'"
+        [class.active]="activeTab === 'register'"
+        (click)="switchTab('register')"
+      >
+        Registrar
+      </button>
+    </div>
+
+    @if (activeTab === 'login') {
+      <h2 id="auth-title">Identifique-se</h2>
+      <form (ngSubmit)="login()">
+        <label for="login-email">E-mail</label>
+        <input
+          id="login-email"
+          name="loginEmail"
+          type="email"
+          maxlength="100"
+          autocomplete="email"
+          placeholder="seu@email.com"
+          [(ngModel)]="loginEmail"
+        />
+
+        <label for="login-password">Senha</label>
+        <input
+          id="login-password"
+          name="loginPassword"
+          type="password"
+          maxlength="100"
+          autocomplete="current-password"
+          placeholder="Sua senha"
+          [(ngModel)]="loginPassword"
+        />
+
+        @if (errorMessage) {
+          <p class="field-error" role="alert">{{ errorMessage }}</p>
+        }
+
+        <button
+          type="submit"
+          class="button auth-action"
+          [disabled]="isLoading || !loginEmail.trim() || !loginPassword.trim()"
+        >
+          {{ isLoading ? 'Aguarde...' : 'Entrar' }}
+        </button>
+      </form>
+    } @else {
+      <h2 id="auth-title">Criar Conta</h2>
+      <form (ngSubmit)="register()">
+        <label for="register-username">Nome do jogador</label>
+        <input
+          id="register-username"
+          name="registerUsername"
+          type="text"
+          maxlength="40"
+          autocomplete="nickname"
+          placeholder="Ex.: Tanker01"
+          [(ngModel)]="registerUsername"
+        />
+
+        <label for="register-email">E-mail</label>
+        <input
+          id="register-email"
+          name="registerEmail"
+          type="email"
+          maxlength="100"
+          autocomplete="email"
+          placeholder="seu@email.com"
+          [(ngModel)]="registerEmail"
+        />
+
+        <label for="register-password">Senha</label>
+        <input
+          id="register-password"
+          name="registerPassword"
+          type="password"
+          maxlength="100"
+          autocomplete="new-password"
+          placeholder="Min. 6 caracteres"
+          [(ngModel)]="registerPassword"
+        />
+
+        @if (errorMessage) {
+          <p class="field-error" role="alert">{{ errorMessage }}</p>
+        }
+
+        <button
+          type="submit"
+          class="button auth-action"
+          [disabled]="isLoading || !registerUsername.trim() || !registerEmail.trim() || !registerPassword.trim()"
+        >
+          {{ isLoading ? 'Aguarde...' : 'Registrar' }}
+        </button>
+      </form>
+    }
+
+    <button type="button" class="button button--secondary auth-action" (click)="goBack()">
+      Voltar ao menu
+    </button>
+  </section>
+</main>

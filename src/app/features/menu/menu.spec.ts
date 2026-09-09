@@ -1,15 +1,58 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { of } from 'rxjs';
 
 import { GAME_CONFIG } from '../../core/config/game.config';
+import { AuthService } from '../../core/services/auth.service';
+import { RoomApiService } from '../../core/services/room-api.service';
 import { Menu } from './menu';
 
 describe('Menu', () => {
+  let authServiceMock: Partial<AuthService>;
+  let roomApiServiceMock: Partial<RoomApiService>;
+
   beforeEach(async () => {
     sessionStorage.clear();
+    localStorage.clear();
+
+    authServiceMock = {
+      isAuthenticated: () => true,
+      getUsername: () => null,
+      logout: () => {},
+    };
+
+    roomApiServiceMock = {
+      createRoom: () =>
+        of({
+          id: '123',
+          roomCode: 'TANK-4X9Z',
+          mapSelected: 'default',
+          status: 'Waiting',
+          playerCount: 1,
+          players: ['Erick Silva'],
+        }),
+      joinRoomByCode: (code: string) =>
+        of({
+          id: '123',
+          roomCode: code.toUpperCase(),
+          mapSelected: 'default',
+          status: 'Waiting',
+          playerCount: 2,
+          players: ['Erick', 'Friend'],
+        }),
+    };
+
     await TestBed.configureTestingModule({
       imports: [Menu],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: authServiceMock },
+        { provide: RoomApiService, useValue: roomApiServiceMock },
+      ],
     }).compileComponents();
   });
 
@@ -43,7 +86,7 @@ describe('Menu', () => {
     expect(completeButtons[1].disabled).toBe(false);
   });
 
-  it('should create a room for a normalized player name', () => {
+  it('should create a room for a normalized player name via REST API', () => {
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const fixture = TestBed.createComponent(Menu);
@@ -53,11 +96,11 @@ describe('Menu', () => {
     fixture.componentInstance.createRoom();
 
     expect(sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey)).toBe('Erick Silva');
-    expect(sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey)).toMatch(/^[A-Z2-9]{6}$/);
+    expect(sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey)).toBe('TANK-4X9Z');
     expect(navigate).toHaveBeenCalledWith(['/waiting-room']);
   });
 
-  it('should normalize the room code before joining', () => {
+  it('should normalize the room code before joining via REST API', () => {
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const fixture = TestBed.createComponent(Menu);

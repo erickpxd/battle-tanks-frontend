@@ -1,3 +1,5 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { BehaviorSubject, of } from 'rxjs';
@@ -6,6 +8,7 @@ import { GAME_CONFIG } from '../../core/config/game.config';
 import { ChatMessage } from '../../core/models/chat-message.model';
 import { Player } from '../../core/models/player.model';
 import { ConnectionStatus, GameService } from '../../core/services/game.service';
+import { RoomApiService } from '../../core/services/room-api.service';
 import { WaitingRoom } from './waiting-room';
 
 describe('WaitingRoom', () => {
@@ -23,6 +26,10 @@ describe('WaitingRoom', () => {
     ),
   };
 
+  const roomApiService = {
+    getRooms: vi.fn(() => of([])),
+  };
+
   beforeEach(async () => {
     sessionStorage.clear();
     connectionStatus.next('disconnected');
@@ -30,7 +37,13 @@ describe('WaitingRoom', () => {
 
     await TestBed.configureTestingModule({
       imports: [WaitingRoom],
-      providers: [provideRouter([]), { provide: GameService, useValue: gameService }],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: GameService, useValue: gameService },
+        { provide: RoomApiService, useValue: roomApiService },
+      ],
     }).compileComponents();
   });
 

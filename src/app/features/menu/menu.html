@@ -8,6 +8,24 @@
   <section class="menu-panel" aria-labelledby="menu-title">
     <h2 id="menu-title">Menu principal</h2>
 
+    <div class="auth-status-bar">
+      @if (isAuthenticated) {
+        <p>Autenticado como: <strong>{{ playerName || 'Jogador' }}</strong></p>
+        <button type="button" class="button button--secondary button--sm" (click)="logout()">
+          Sair
+        </button>
+      } @else {
+        <p>Acesso à API REST:</p>
+        <button type="button" class="button button--sm" (click)="goToAuth()">
+          Entrar / Registrar
+        </button>
+      }
+    </div>
+
+    @if (apiError) {
+      <p class="field-error api-banner-error" role="alert">{{ apiError }}</p>
+    }
+
     <form (ngSubmit)="joinRoom()">
       <label for="player-name">Nome do jogador</label>
       <input
@@ -26,10 +44,10 @@
       <button
         type="button"
         class="button menu-action"
-        [disabled]="!playerName.trim()"
+        [disabled]="isLoading || !playerName.trim()"
         (click)="createRoom()"
       >
-        Criar sala
+        {{ isLoading ? 'Criando sala...' : 'Criar sala' }}
       </button>
 
       <div class="menu-divider" aria-hidden="true"><span>ou</span></div>
@@ -40,17 +58,17 @@
           id="room-code"
           name="roomCode"
           type="text"
-          maxlength="8"
+          maxlength="9"
           autocomplete="off"
-          placeholder="Ex.: A7K9P2"
+          placeholder="Ex.: TANK-4X9Z"
           [(ngModel)]="roomCode"
         />
         <button
           type="submit"
           class="button"
-          [disabled]="!playerName.trim() || !roomCode.trim()"
+          [disabled]="isLoading || !playerName.trim() || !roomCode.trim()"
         >
-          Entrar na sala
+          {{ isLoading ? 'Entrando...' : 'Entrar na sala' }}
         </button>
       </div>
       @if (roomCodeError) {
