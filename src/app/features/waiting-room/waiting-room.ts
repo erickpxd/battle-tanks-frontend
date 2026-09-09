@@ -7,7 +7,9 @@ import { Subscription } from 'rxjs';
 import { GAME_CONFIG } from '../../core/config/game.config';
 import { ChatMessage } from '../../core/models/chat-message.model';
 import { Player } from '../../core/models/player.model';
+import { RoomModel } from '../../core/models/room.model';
 import { ConnectionStatus, GameService } from '../../core/services/game.service';
+import { RoomApiService } from '../../core/services/room-api.service';
 
 @Component({
   selector: 'app-waiting-room',
@@ -23,14 +25,17 @@ export class WaitingRoom implements OnInit, OnDestroy {
   connectionStatus: ConnectionStatus = 'disconnected';
   players: Player[] = [];
   messages: ChatMessage[] = [];
+  availableRooms: RoomModel[] = [];
   savedPlayerName = '';
   savedRoomCode = '';
 
   private readonly subscriptions = new Subscription();
   private destroyed = false;
+  private roomsIntervalId?: any;
 
   constructor(
     private readonly gameService: GameService,
+    private readonly roomApiService: RoomApiService,
     private readonly router: Router,
   ) {}
 
@@ -58,14 +63,28 @@ export class WaitingRoom implements OnInit, OnDestroy {
       }),
     );
     this.subscriptions.add(
-      this.gameService.onChatMessage((message) => {
-        this.messages = [...this.messages, message];
+      this.gameService.onChatMessagesUpdated((messages) => {
+        this.messages = messages;
         queueMicrotask(() => this.scrollChatToEnd());
       }),
     );
 
+    this.fetchRoomsFromApi();
+    this.roomsIntervalId = setInterval(() => this.fetchRoomsFromApi(), 3000);
+
     this.gameService.joinRoom(this.savedPlayerName);
     this.gameService.connect();
+  }
+
+  fetchRoomsFromApi(): void {
+    this.roomApiService.getRooms().subscribe({
+      next: (rooms) => {
+        this.availableRooms = rooms;
+      },
+      error: () => {
+        // Non-blocking for room display
+      },
+    });
   }
 
   retryConnection(): void {
@@ -112,6 +131,9 @@ export class WaitingRoom implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroyed = true;
     this.subscriptions.unsubscribe();
+    if (this.roomsIntervalId) {
+      clearInterval(this.roomsIntervalId);
+    }
   }
 
   private scrollChatToEnd(): void {
