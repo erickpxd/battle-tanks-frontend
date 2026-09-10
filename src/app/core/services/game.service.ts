@@ -1,189 +1,313 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Injectable, OnDestroy, inject } from '@angular/core';
-import { BehaviorSubject, Observable, Subject, Subscription, distinctUntilChanged } from 'rxjs';
+import { inject, Injectable, InjectionToken, OnDestroy } from '@angular/core';
+import {
+  HubConnection,
+  HubConnectionBuilder,
+  HubConnectionState,
+  LogLevel,
+} from '@microsoft/signalr';
+import { Store } from '@ngrx/store';
+import { filter, map, Observable, Subscription } from 'rxjs';
 
 import { GAME_CONFIG } from '../config/game.config';
 import { ChatMessage } from '../models/chat-message.model';
+import { ConnectionStatus } from '../models/connection-status.model';
 import { GameState } from '../models/game-state.model';
 import { MapTileChange } from '../models/map-tile-change.model';
 import { Player } from '../models/player.model';
-import { PlayerDirection, Position } from '../models/position.model';
+import { Position } from '../models/position.model';
+import {
+  PlayerMoveRequest,
+  RealtimeAck,
+  RealtimeChatRequest,
+  RealtimeMapTileChange,
+} from '../models/realtime-event.model';
+import { GameActions } from '../store/game.actions';
+import {
+  selectChatMessages,
+  selectConnectionError,
+  selectConnectionStatus,
+  selectLastChatMessage,
+  selectLastMapTileChange,
+  selectLastPlayerMove,
+  selectLocalPlayerId,
+  selectPlayers,
+} from '../store/game.selectors';
 import { AuthService } from './auth.service';
+import { RealtimeBenchmarkReport, RealtimeBenchmarkService } from './realtime-benchmark.service';
 
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type { ConnectionStatus } from '../models/connection-status.model';
 
-@Injectable({
-  providedIn: 'root',
-})
+export type RealtimeHubConnectionFactory = () => HubConnection;
+
+export const REALTIME_HUB_CONNECTION_FACTORY = new InjectionToken<RealtimeHubConnectionFactory>(
+  'REALTIME_HUB_CONNECTION_FACTORY',
+  {
+    providedIn: 'root',
+    factory: () => {
+      const authService = inject(AuthService);
+      return () =>
+        new HubConnectionBuilder()
+          .withUrl(GAME_CONFIG.signalRHubUrl, {
+            accessTokenFactory: () => authService.getToken() ?? '',
+          })
+          .withAutomaticReconnect([0, 2_000, 5_000, 10_000])
+          .configureLogging(LogLevel.Information)
+          .build();
+    },
+  },
+);
+
+@Injectable({ providedIn: 'root' })
 export class GameService implements OnDestroy {
-  private readonly http = inject(HttpClient);
-  private readonly authService = inject(AuthService);
+  private readonly store = inject(Store);
+  private readonly createConnection = inject(REALTIME_HUB_CONNECTION_FACTORY);
+  private readonly benchmark = inject(RealtimeBenchmarkService);
 
-  private pendingPlayerName: string | null = null;
-  private joinedPlayerName: string | null = null;
-  private pollingIntervalId?: any;
+  private connection?: HubConnection;
+  private pendingRoomCode: string | null = null;
+  private joinedRoomCode: string | null = null;
+  private joinPromise?: Promise<void>;
 
-  private readonly connectionStatusSubject = new BehaviorSubject<ConnectionStatus>('disconnected');
-  private readonly errorMessageSubject = new BehaviorSubject<string | null>(null);
-  private readonly playersSubject = new BehaviorSubject<Player[]>([]);
-  private readonly playerMoveSubject = new Subject<Player>();
-  private readonly mapTileDestroyedSubject = new Subject<MapTileChange>();
-  private readonly chatMessageSubject = new Subject<ChatMessage>();
-  private readonly chatMessagesListSubject = new BehaviorSubject<ChatMessage[]>([]);
-  private readonly gameStateSubject = new Subject<GameState>();
-  private readonly localPlayerIdSubject = new BehaviorSubject<string | null>(null);
-
-  readonly connectionStatus$: Observable<ConnectionStatus> = this.connectionStatusSubject
-    .asObservable()
-    .pipe(distinctUntilChanged());
-  readonly errorMessage$ = this.errorMessageSubject.asObservable();
-  readonly localPlayerId$ = this.localPlayerIdSubject.asObservable().pipe(distinctUntilChanged());
+  readonly connectionStatus$: Observable<ConnectionStatus> =
+    this.store.select(selectConnectionStatus);
+  readonly errorMessage$ = this.store.select(selectConnectionError);
+  readonly localPlayerId$ = this.store.select(selectLocalPlayerId);
 
   connect(): void {
-    const status = this.connectionStatusSubject.value;
-    if (status === 'connecting' || status === 'connected') {
+    const connection = this.getOrCreateConnection();
+    if (connection.state !== HubConnectionState.Disconnected) {
       return;
     }
 
-    this.errorMessageSubject.next(null);
-    this.connectionStatusSubject.next('connecting');
-
-    // Simulação: Sem WebSocket, forçamos 'connected'
-    setTimeout(() => {
-      this.connectionStatusSubject.next('connected');
-      this.sendPendingPlayerJoin();
-      this.startChatPolling();
-    }, 500);
+    this.store.dispatch(GameActions.connectionErrorChanged({ message: null }));
+    this.store.dispatch(GameActions.connectionStatusChanged({ status: 'connecting' }));
+    void connection
+      .start()
+      .then(async () => {
+        this.store.dispatch(GameActions.connectionStatusChanged({ status: 'connected' }));
+        await this.joinPendingRoom();
+      })
+      .catch((error: unknown) => this.handleConnectionError(error));
   }
 
   disconnect(): void {
-    this.stopChatPolling();
-    this.pendingPlayerName = null;
-    this.joinedPlayerName = null;
-
-    this.connectionStatusSubject.next('disconnected');
-    this.errorMessageSubject.next(null);
+    this.pendingRoomCode = null;
+    this.joinedRoomCode = null;
+    this.joinPromise = undefined;
+    const stop =
+      this.connection?.state === HubConnectionState.Disconnected
+        ? Promise.resolve()
+        : this.connection?.stop();
+    if (!stop) {
+      this.store.dispatch(GameActions.realtimeStateReset());
+      return;
+    }
+    void stop?.finally(() => {
+      this.store.dispatch(GameActions.realtimeStateReset());
+    });
   }
 
-  onPlayerMove(callback: (player: Player) => void): Subscription {
-    return this.playerMoveSubject.subscribe(callback);
-  }
-
-  sendPlayerMove(position: Position): void {}
-
-  sendMapTileDestroyed(change: MapTileChange): void {}
-
-  onMapTileDestroyed(callback: (change: MapTileChange) => void): Subscription {
-    return this.mapTileDestroyedSubject.subscribe(callback);
-  }
-
-  joinRoom(playerName: string): void {
-    const name = this.normalizeText(playerName);
-    if (!name || (name === this.joinedPlayerName && this.connectionStatusSubject.value === 'connected')) {
+  joinRoom(_playerName: string): void {
+    const roomCode = sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey)?.trim().toUpperCase();
+    if (!roomCode) {
+      this.store.dispatch(
+        GameActions.connectionErrorChanged({ message: 'Nenhum código de sala foi informado.' }),
+      );
       return;
     }
 
-    this.pendingPlayerName = name;
-    this.sendPendingPlayerJoin();
+    this.pendingRoomCode = roomCode;
+    void this.joinPendingRoom();
   }
 
-  onPlayersUpdated(callback: (players: Player[]) => void): Subscription {
-    return this.playersSubject.subscribe(callback);
+  sendPlayerMove(position: Position): void {
+    const request: PlayerMoveRequest = {
+      ...position,
+      ...createRealtimeMetadata(),
+    };
+    this.store.dispatch(GameActions.localPlayerMoved({ position }));
+    this.invokeWithBenchmark('MovePlayer', request);
+  }
+
+  sendMapTileDestroyed(change: MapTileChange): void {
+    const request: RealtimeMapTileChange = {
+      ...change,
+      ...createRealtimeMetadata(),
+    };
+    this.invokeWithBenchmark('DestroyMapTile', request);
   }
 
   sendChatMessage(message: string): void {
     const normalizedMessage = message.trim().slice(0, 250);
-    if (!normalizedMessage) return;
+    if (!normalizedMessage) {
+      return;
+    }
 
-    const roomCode = sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey);
-    if (!roomCode) return;
+    const request: RealtimeChatRequest = {
+      message: normalizedMessage,
+      ...createRealtimeMetadata(),
+    };
+    this.invokeWithBenchmark('SendChatMessage', request);
+  }
 
-    this.http.post<ChatMessage>(
-      `${GAME_CONFIG.apiUrl}/api/chat/${roomCode}`, 
-      { message: normalizedMessage }, 
-      { headers: this.getAuthHeaders() }
-    ).subscribe({
-      next: () => this.pollChat(),
-      error: () => console.error('Failed to send chat')
-    });
+  onPlayerMove(callback: (player: Player) => void): Subscription {
+    return this.store
+      .select(selectLastPlayerMove)
+      .pipe(filter((player): player is Player => player !== null))
+      .subscribe(callback);
+  }
+
+  onPlayersUpdated(callback: (players: Player[]) => void): Subscription {
+    return this.store.select(selectPlayers).subscribe((players) => callback([...players]));
   }
 
   onChatMessage(callback: (message: ChatMessage) => void): Subscription {
-    return this.chatMessageSubject.subscribe(callback);
+    return this.store
+      .select(selectLastChatMessage)
+      .pipe(filter((message): message is ChatMessage => message !== null))
+      .subscribe(callback);
   }
 
   onChatMessagesUpdated(callback: (messages: ChatMessage[]) => void): Subscription {
-    return this.chatMessagesListSubject.subscribe(callback);
+    return this.store.select(selectChatMessages).subscribe((messages) => callback([...messages]));
+  }
+
+  onMapTileDestroyed(callback: (change: MapTileChange) => void): Subscription {
+    return this.store
+      .select(selectLastMapTileChange)
+      .pipe(filter((change): change is MapTileChange => change !== null))
+      .subscribe(callback);
   }
 
   onGameState(callback: (state: GameState) => void): Subscription {
-    return this.gameStateSubject.subscribe(callback);
+    return this.store
+      .select(selectPlayers)
+      .pipe(map((players) => ({ players: [...players] })))
+      .subscribe(callback);
+  }
+
+  getBenchmarkReport(): RealtimeBenchmarkReport {
+    return this.benchmark.report();
+  }
+
+  resetBenchmark(): void {
+    this.benchmark.reset();
   }
 
   ngOnDestroy(): void {
     this.disconnect();
-    this.connectionStatusSubject.complete();
-    this.errorMessageSubject.complete();
-    this.playersSubject.complete();
-    this.playerMoveSubject.complete();
-    this.mapTileDestroyedSubject.complete();
-    this.chatMessageSubject.complete();
-    this.chatMessagesListSubject.complete();
-    this.gameStateSubject.complete();
-    this.localPlayerIdSubject.complete();
   }
 
-  private sendPendingPlayerJoin(): void {
-    if (!this.pendingPlayerName || this.connectionStatusSubject.value !== 'connected') {
-      return;
+  private getOrCreateConnection(): HubConnection {
+    if (this.connection) {
+      return this.connection;
     }
-    // Para a simulação, apenas assumimos que o join deu certo no frontend localmente
-    this.joinedPlayerName = this.pendingPlayerName;
-    this.pendingPlayerName = null;
-    
-    // Podemos também adicionar o próprio jogador à lista local para ele aparecer no lobby
-    const localPlayer: Player = {
-      id: 'local-mock-id',
-      name: this.joinedPlayerName,
-      position: { x: 0, y: 0, direction: 'up' }
-    };
-    this.playersSubject.next([localPlayer]);
-  }
 
-  private startChatPolling(): void {
-    this.stopChatPolling();
-    this.pollingIntervalId = setInterval(() => {
-      this.pollChat();
-    }, 2000);
-    this.pollChat(); // call immediately
-  }
-
-  private stopChatPolling(): void {
-    if (this.pollingIntervalId) {
-      clearInterval(this.pollingIntervalId);
-      this.pollingIntervalId = undefined;
-    }
-  }
-
-  private pollChat(): void {
-    const roomCode = sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey);
-    if (!roomCode) return;
-
-    this.http.get<ChatMessage[]>(`${GAME_CONFIG.apiUrl}/api/chat/${roomCode}`, {
-      headers: this.getAuthHeaders()
-    }).subscribe({
-      next: (messages) => {
-        this.chatMessagesListSubject.next(messages);
+    const connection = this.createConnection();
+    connection.on('ReceiveLocalPlayerId', (playerId: string) => {
+      this.store.dispatch(GameActions.localPlayerIdentified({ playerId }));
+    });
+    connection.on('ReceivePlayersUpdated', (players: Player[]) => {
+      this.benchmark.recordReceived();
+      this.store.dispatch(GameActions.playersUpdated({ players }));
+    });
+    connection.on('ReceivePlayerMove', (player: Player) => {
+      this.benchmark.recordReceived();
+      this.store.dispatch(GameActions.playerMoved({ player }));
+    });
+    connection.on('ReceiveChatHistory', (messages: ChatMessage[]) => {
+      this.store.dispatch(GameActions.chatHistoryReceived({ messages }));
+    });
+    connection.on('ReceiveChatMessage', (message: ChatMessage) => {
+      this.benchmark.recordReceived();
+      this.store.dispatch(GameActions.chatMessageReceived({ message }));
+    });
+    connection.on('ReceiveMapTileDestroyed', (change: RealtimeMapTileChange) => {
+      this.benchmark.recordReceived();
+      this.store.dispatch(GameActions.mapTileDestroyed({ change }));
+    });
+    connection.onreconnecting(() => {
+      this.store.dispatch(GameActions.connectionStatusChanged({ status: 'connecting' }));
+    });
+    connection.onreconnected(() => {
+      this.joinedRoomCode = null;
+      this.store.dispatch(GameActions.connectionStatusChanged({ status: 'connected' }));
+      void this.joinPendingRoom();
+    });
+    connection.onclose((error) => {
+      this.joinedRoomCode = null;
+      this.store.dispatch(GameActions.connectionStatusChanged({ status: 'disconnected' }));
+      if (error) {
+        this.store.dispatch(GameActions.connectionErrorChanged({ message: readableError(error) }));
       }
     });
+
+    this.connection = connection;
+    return connection;
   }
 
-  private getAuthHeaders(): HttpHeaders {
-    const token = this.authService.getToken();
-    return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : new HttpHeaders();
+  private async joinPendingRoom(): Promise<void> {
+    const connection = this.connection;
+    const roomCode = this.pendingRoomCode;
+    if (
+      !connection ||
+      connection.state !== HubConnectionState.Connected ||
+      !roomCode ||
+      roomCode === this.joinedRoomCode
+    ) {
+      return;
+    }
+
+    if (!this.joinPromise) {
+      this.joinPromise = connection
+        .invoke<void>('JoinRoom', roomCode)
+        .then(() => {
+          this.joinedRoomCode = roomCode;
+        })
+        .catch((error: unknown) => this.handleConnectionError(error))
+        .finally(() => {
+          this.joinPromise = undefined;
+        });
+    }
+    await this.joinPromise;
   }
 
-  private normalizeText(value: string): string {
-    return value.trim().replace(/\s+/g, ' ');
+  private invokeWithBenchmark(
+    methodName: 'MovePlayer' | 'SendChatMessage' | 'DestroyMapTile',
+    request: PlayerMoveRequest | RealtimeChatRequest | RealtimeMapTileChange,
+  ): void {
+    if (this.connection?.state !== HubConnectionState.Connected || !this.joinedRoomCode) {
+      return;
+    }
+
+    this.benchmark.recordSent(request.eventId);
+    void this.connection
+      .invoke<RealtimeAck>(methodName, request)
+      .then((ack) => this.benchmark.recordAcknowledged(ack.eventId))
+      .catch((error: unknown) => {
+        this.store.dispatch(GameActions.connectionErrorChanged({ message: readableError(error) }));
+      });
   }
+
+  private handleConnectionError(error: unknown): void {
+    this.store.dispatch(GameActions.connectionStatusChanged({ status: 'error' }));
+    this.store.dispatch(GameActions.connectionErrorChanged({ message: readableError(error) }));
+  }
+}
+
+function createRealtimeMetadata(): { eventId: string; clientSentAtUnixMs: number } {
+  return {
+    eventId:
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `event-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    clientSentAtUnixMs: Date.now(),
+  };
+}
+
+function readableError(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return 'Não foi possível comunicar com o servidor multiplayer.';
 }

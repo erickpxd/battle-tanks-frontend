@@ -2,28 +2,23 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { Store, provideStore } from '@ngrx/store';
+import { of } from 'rxjs';
 
 import { GAME_CONFIG } from '../../core/config/game.config';
-import { ChatMessage } from '../../core/models/chat-message.model';
-import { Player } from '../../core/models/player.model';
-import { ConnectionStatus, GameService } from '../../core/services/game.service';
+import { GameService } from '../../core/services/game.service';
 import { RoomApiService } from '../../core/services/room-api.service';
+import { GameActions } from '../../core/store/game.actions';
+import { gameFeatureKey, gameReducer } from '../../core/store/game.reducer';
 import { WaitingRoom } from './waiting-room';
 
 describe('WaitingRoom', () => {
-  const connectionStatus = new BehaviorSubject<ConnectionStatus>('disconnected');
+  let store: Store;
   const gameService = {
-    connectionStatus$: connectionStatus.asObservable(),
-    errorMessage$: of(null),
     connect: vi.fn(),
     disconnect: vi.fn(),
     joinRoom: vi.fn(),
     sendChatMessage: vi.fn(),
-    onPlayersUpdated: vi.fn((callback: (players: Player[]) => void) => of([]).subscribe(callback)),
-    onChatMessage: vi.fn((callback: (message: ChatMessage) => void) =>
-      of<ChatMessage>().subscribe(callback),
-    ),
   };
 
   const roomApiService = {
@@ -32,7 +27,6 @@ describe('WaitingRoom', () => {
 
   beforeEach(async () => {
     sessionStorage.clear();
-    connectionStatus.next('disconnected');
     vi.clearAllMocks();
 
     await TestBed.configureTestingModule({
@@ -41,10 +35,12 @@ describe('WaitingRoom', () => {
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
+        provideStore({ [gameFeatureKey]: gameReducer }),
         { provide: GameService, useValue: gameService },
         { provide: RoomApiService, useValue: roomApiService },
       ],
     }).compileComponents();
+    store = TestBed.inject(Store);
   });
 
   it('should redirect to the menu when no player was identified', () => {
@@ -82,7 +78,7 @@ describe('WaitingRoom', () => {
     fixture.componentInstance.openGame();
     expect(navigate).not.toHaveBeenCalledWith(['/game']);
 
-    connectionStatus.next('connected');
+    store.dispatch(GameActions.connectionStatusChanged({ status: 'connected' }));
     fixture.componentInstance.openGame();
     expect(navigate).toHaveBeenCalledWith(['/game']);
   });

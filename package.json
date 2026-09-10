@@ -5,6 +5,7 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "benchmark:signalr": "node scripts/signalr-benchmark.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
@@ -17,6 +18,8 @@
     "@angular/forms": "^22.0.0",
     "@angular/platform-browser": "^22.0.0",
     "@angular/router": "^22.0.0",
+    "@microsoft/signalr": "^10.0.11",
+    "@ngrx/store": "^22.0.0-rc.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

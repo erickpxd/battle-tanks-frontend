@@ -1,12 +1,17 @@
 import { AfterViewInit, Component, ElementRef, inject, OnDestroy, ViewChild } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Store } from '@ngrx/store';
+import { filter, Subscription } from 'rxjs';
 
-import { GameState } from '../../../core/models/game-state.model';
 import { MapTileChange } from '../../../core/models/map-tile-change.model';
 import { Player } from '../../../core/models/player.model';
 import { PlayerDirection, Position } from '../../../core/models/position.model';
 import { Tank, TankStatus } from '../../../core/models/tank.model';
 import { GameService } from '../../../core/services/game.service';
+import {
+  selectLastMapTileChange,
+  selectLocalPlayerId,
+  selectPlayers,
+} from '../../../core/store/game.selectors';
 import { BulletComponent, BulletState } from '../bullet/bullet.component';
 import { ExplosionSignalStore } from '../explosion/explosion.store';
 import { BattleMapSignalStore } from '../map/battle-map.store';
@@ -74,7 +79,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   private lastMovementSentAt = Number.NEGATIVE_INFINITY;
   private lastSentPosition: Position = { ...this.localTank.position };
   private localPlayerId: string | null = null;
-  private latestPlayers: Player[] = [];
+  private latestPlayers: readonly Player[] = [];
   private localSpawnAssigned = false;
   private usingWindowResize = false;
 
@@ -116,7 +121,10 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.frameId = requestAnimationFrame(this.gameLoop);
   };
 
-  constructor(private readonly gameService: GameService) {}
+  constructor(
+    private readonly gameService: GameService,
+    private readonly store: Store,
+  ) {}
 
   ngAfterViewInit(): void {
     this.context = this.canvasRef.nativeElement.getContext('2d');
@@ -136,25 +144,22 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     window.addEventListener('keydown', this.handleKeyDown, { passive: false });
 
     this.subscriptions.add(
-      this.gameService.onPlayerMove((player) => this.updateRemotePlayer(player)),
-    );
-    this.subscriptions.add(
-      this.gameService.onGameState((state) => this.replaceRemotePlayers(state)),
-    );
-    this.subscriptions.add(
-      this.gameService.onPlayersUpdated((players) => {
+      this.store.select(selectPlayers).subscribe((players) => {
         this.replaceRemotePlayers({ players });
       }),
     );
     this.subscriptions.add(
-      this.gameService.onMapTileDestroyed((change) => {
-        if (this.mapStore.destroyTile(change.column, change.row)) {
-          this.addExplosionAtTile(change.column, change.row, true);
-        }
-      }),
+      this.store
+        .select(selectLastMapTileChange)
+        .pipe(filter((change): change is MapTileChange => change !== null))
+        .subscribe((change) => {
+          if (this.mapStore.destroyTile(change.column, change.row)) {
+            this.addExplosionAtTile(change.column, change.row, true);
+          }
+        }),
     );
     this.subscriptions.add(
-      this.gameService.localPlayerId$.subscribe((playerId) => {
+      this.store.select(selectLocalPlayerId).subscribe((playerId) => {
         this.localPlayerId = playerId;
         if (playerId) {
           this.remotePlayers.delete(playerId);
@@ -382,14 +387,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.lastMovementSentAt = timestamp;
   }
 
-  private updateRemotePlayer(player: Player): void {
-    if (this.isLocalPlayer(player)) {
-      return;
-    }
-    this.remotePlayers.set(player.id, player);
-  }
-
-  private replaceRemotePlayers(state: GameState): void {
+  private replaceRemotePlayers(state: { players: readonly Player[] }): void {
     this.latestPlayers = state.players;
     this.selectLocalSpawnFromPlayers();
     this.remotePlayers.clear();
