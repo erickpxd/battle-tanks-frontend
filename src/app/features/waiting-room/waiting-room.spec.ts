@@ -98,4 +98,47 @@ describe('WaitingRoom', () => {
     expect(sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey)).toBeNull();
     expect(navigate).toHaveBeenCalledWith(['/menu']);
   });
+
+  it('should render chat messages received asynchronously without another click', async () => {
+    sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, 'ABC123');
+    const fixture = TestBed.createComponent(WaitingRoom);
+    fixture.detectChanges();
+
+    store.dispatch(
+      GameActions.chatMessageReceived({
+        message: {
+          id: 'message-1',
+          playerName: 'Ana',
+          message: 'Olá!',
+          timestamp: new Date().toISOString(),
+        },
+      }),
+    );
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.querySelector('.chat-message p')?.textContent).toContain('Olá!');
+  });
+
+  it('should render players received asynchronously without a manual refresh', async () => {
+    sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, 'ABC123');
+    const fixture = TestBed.createComponent(WaitingRoom);
+    fixture.detectChanges();
+
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'player-1',
+            name: 'Ana',
+            position: { x: 1, y: 1, direction: 'right' },
+          },
+        ],
+      }),
+    );
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.querySelector('.player-list li')?.textContent).toContain('Ana');
+  });
 });

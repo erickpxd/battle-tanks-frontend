@@ -25,6 +25,10 @@ export const selectLastPlayerMove = createSelector(
   selectRealtimeGameState,
   (state) => state.lastPlayerMove,
 );
+export const selectLastPlayerHit = createSelector(
+  selectRealtimeGameState,
+  (state) => state.lastPlayerHit,
+);
 export const selectLastChatMessage = createSelector(
   selectRealtimeGameState,
   (state) => state.lastChatMessage,

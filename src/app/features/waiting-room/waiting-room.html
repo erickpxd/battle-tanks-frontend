@@ -61,9 +61,7 @@
       <div class="api-rooms-section">
         <div class="api-rooms-header">
           <h3>Salas Ativas (API REST)</h3>
-          <button type="button" class="button button--secondary button--sm" (click)="fetchRoomsFromApi()">
-            Atualizar
-          </button>
+          <span class="automatic-update">Atualização automática</span>
         </div>
         @if (availableRooms.length === 0) {
           <p class="empty-state">Nenhuma outra sala disponível no momento.</p>

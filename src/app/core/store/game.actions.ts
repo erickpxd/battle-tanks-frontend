@@ -14,6 +14,7 @@ export const GameActions = createActionGroup({
     'Local Player Identified': props<{ playerId: string }>(),
     'Players Updated': props<{ players: Player[] }>(),
     'Player Moved': props<{ player: Player }>(),
+    'Player Hit': props<{ player: Player }>(),
     'Local Player Moved': props<{ position: Position }>(),
     'Chat History Received': props<{ messages: ChatMessage[] }>(),
     'Chat Message Received': props<{ message: ChatMessage }>(),

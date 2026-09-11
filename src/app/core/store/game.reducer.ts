@@ -15,6 +15,7 @@ export interface RealtimeGameState {
   readonly players: readonly Player[];
   readonly chatMessages: readonly ChatMessage[];
   readonly lastPlayerMove: Player | null;
+  readonly lastPlayerHit: Player | null;
   readonly lastChatMessage: ChatMessage | null;
   readonly lastMapTileChange: MapTileChange | null;
 }
@@ -26,6 +27,7 @@ export const initialRealtimeGameState: RealtimeGameState = {
   players: [],
   chatMessages: [],
   lastPlayerMove: null,
+  lastPlayerHit: null,
   lastChatMessage: null,
   lastMapTileChange: null,
 };
@@ -52,6 +54,11 @@ export const gameReducer = createReducer(
     ...state,
     players: upsertPlayer(state.players, player),
     lastPlayerMove: player,
+  })),
+  on(GameActions.playerHit, (state, { player }) => ({
+    ...state,
+    players: upsertPlayer(state.players, player),
+    lastPlayerHit: player,
   })),
   on(GameActions.localPlayerMoved, (state, { position }) => {
     if (!state.localPlayerId) {

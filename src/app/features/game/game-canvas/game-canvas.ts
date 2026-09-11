@@ -9,6 +9,7 @@ import { Tank, TankStatus } from '../../../core/models/tank.model';
 import { GameService } from '../../../core/services/game.service';
 import {
   selectLastMapTileChange,
+  selectLastPlayerHit,
   selectLocalPlayerId,
   selectPlayers,
 } from '../../../core/store/game.selectors';
@@ -25,6 +26,8 @@ interface TankMovementAnimation {
 }
 
 const PROJECTILE_SPEED = 420;
+const PLAYER_HIT_DAMAGE = 25;
+const PROJECTILE_RADIUS = 3;
 
 const KEY_DIRECTIONS: Readonly<Record<string, PlayerDirection>> = {
   w: 'up',
@@ -159,6 +162,16 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         }),
     );
     this.subscriptions.add(
+      this.store
+        .select(selectLastPlayerHit)
+        .pipe(filter((player): player is Player => player !== null))
+        .subscribe((player) => {
+          if (this.isLocalPlayer(player) && typeof player.health === 'number') {
+            this.tankStore.setHealth(player.health);
+          }
+        }),
+    );
+    this.subscriptions.add(
       this.store.select(selectLocalPlayerId).subscribe((playerId) => {
         this.localPlayerId = playerId;
         if (playerId) {
@@ -288,6 +301,19 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   }
 
   private resolveProjectileCollision(projectile: BulletState, timestamp: number): boolean {
+    const hitPlayer = this.findProjectileHitPlayer(projectile);
+    if (hitPlayer) {
+      this.explosionStore.start({
+        x: projectile.x,
+        y: projectile.y,
+        startedAt: timestamp,
+        destructive: true,
+      });
+      this.projectile = undefined;
+      this.gameService.sendPlayerHit(hitPlayer.id, PLAYER_HIT_DAMAGE);
+      return true;
+    }
+
     const tileWidth = this.logicalWidth / this.battleMap.expandedColumns;
     const tileHeight = this.logicalHeight / this.battleMap.expandedRows;
     const column = Math.floor(projectile.x / tileWidth);
@@ -312,6 +338,26 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       this.gameService.sendMapTileDestroyed(change);
     }
     return true;
+  }
+
+  private findProjectileHitPlayer(projectile: BulletState): Player | undefined {
+    const cellWidth = this.logicalWidth / this.gridColumns;
+    const cellHeight = this.logicalHeight / this.gridRows;
+    const halfTankWidth = 16;
+    const halfTankHeight = 19;
+
+    return [...this.remotePlayers.values()].find((player) => {
+      if (player.status === 'destroyed') {
+        return false;
+      }
+
+      const centerX = player.position.x * cellWidth + cellWidth / 2;
+      const centerY = player.position.y * cellHeight + cellHeight / 2;
+      return (
+        Math.abs(projectile.x - centerX) <= halfTankWidth + PROJECTILE_RADIUS &&
+        Math.abs(projectile.y - centerY) <= halfTankHeight + PROJECTILE_RADIUS
+      );
+    });
   }
 
   private updateExplosions(timestamp: number): void {
@@ -413,6 +459,11 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       return;
     }
 
+    const localPlayer = this.latestPlayers[playerIndex];
+    if (localPlayer && typeof localPlayer.health === 'number') {
+      this.tankStore.setHealth(localPlayer.health);
+    }
+
     this.renderedLocalTankPosition.x = spawn.x;
     this.renderedLocalTankPosition.y = spawn.y;
     this.renderedLocalTankPosition.direction = spawn.direction;
@@ -458,7 +509,15 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       this.localTank.status,
     );
     for (const player of this.remotePlayers.values()) {
-      this.drawTank(context, player.position, 32, 38, '#7fcf6b', player.name);
+      this.drawTank(
+        context,
+        player.position,
+        32,
+        38,
+        remoteTankColor(player),
+        player.name,
+        player.status ?? 'active',
+      );
     }
     this.drawProjectile(context);
     this.drawExplosions(context);
@@ -661,6 +720,21 @@ function tankColor(tank: Tank): string {
     return '#b28b31';
   }
   return '#f4c542';
+}
+
+function remoteTankColor(player: Player): string {
+  if (player.status === 'destroyed') {
+    return '#393a32';
+  }
+
+  const healthRatio = (player.health ?? 100) / (player.maxHealth ?? 100);
+  if (healthRatio <= 0.33) {
+    return '#31512c';
+  }
+  if (healthRatio <= 0.66) {
+    return '#4f8a43';
+  }
+  return '#7fcf6b';
 }
 
 function interpolate(from: number, to: number, progress: number): number {

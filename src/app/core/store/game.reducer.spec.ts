@@ -40,4 +40,19 @@ describe('gameReducer', () => {
 
     expect(duplicateState.chatMessages).toEqual([message]);
   });
+
+  it('should update the target player after a confirmed hit', () => {
+    const initialState = { ...initialRealtimeGameState, players: [originalPlayer] };
+    const hitPlayer: Player = {
+      ...originalPlayer,
+      health: 75,
+      maxHealth: 100,
+      status: 'active',
+    };
+
+    const state = gameReducer(initialState, GameActions.playerHit({ player: hitPlayer }));
+
+    expect(state.players).toEqual([hitPlayer]);
+    expect(state.lastPlayerHit).toEqual(hitPlayer);
+  });
 });

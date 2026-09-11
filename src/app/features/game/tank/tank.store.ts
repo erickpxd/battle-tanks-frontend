@@ -63,8 +63,16 @@ export class TankSignalStore {
       return;
     }
 
+    this.setHealth(this.tank().health - amount);
+  }
+
+  setHealth(value: number): void {
+    if (!Number.isFinite(value)) {
+      return;
+    }
+
     this.updateTank((tank) => {
-      const health = Math.max(tank.health - amount, 0);
+      const health = clamp(Math.round(value), 0, tank.maxHealth);
       return {
         ...tank,
         health,
@@ -117,4 +125,8 @@ function freezePosition(position: {
   direction: PlayerDirection;
 }): Readonly<{ x: number; y: number; direction: PlayerDirection }> {
   return Object.freeze(position);
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(Math.max(value, minimum), maximum);
 }

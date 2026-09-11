@@ -199,6 +199,12 @@
   padding: 0.25rem 0.5rem;
 }
 
+.automatic-update {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
 .api-rooms-list {
   display: grid;
   gap: 0.4rem;

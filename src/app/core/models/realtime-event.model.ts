@@ -14,6 +14,11 @@ export interface RealtimeChatRequest extends RealtimeMetadata {
 
 export interface RealtimeMapTileChange extends MapTileChange, RealtimeMetadata {}
 
+export interface PlayerHitRequest extends RealtimeMetadata {
+  targetPlayerId: string;
+  damage: number;
+}
+
 export interface RealtimeAck extends RealtimeMetadata {
   serverReceivedAt: string;
 }

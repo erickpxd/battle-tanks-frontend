@@ -18,6 +18,7 @@ describe('GameCanvas', () => {
 
   const gameService = {
     sendPlayerMove: vi.fn(),
+    sendPlayerHit: vi.fn(),
     sendMapTileDestroyed: vi.fn(),
   };
 
@@ -243,6 +244,59 @@ describe('GameCanvas', () => {
     }
     expect(gameService.sendMapTileDestroyed).toHaveBeenCalledTimes(3);
     expect(component.explosionStore.explosions()).toHaveLength(1);
+  });
+
+  it('should hit a remote tank when the projectile crosses its bounds', () => {
+    const { x, y } = component.localTank.position;
+    store.dispatch(
+      GameActions.playerMoved({
+        player: {
+          id: 'remote-player',
+          name: 'Ana',
+          position: { x: x + 1, y, direction: 'left' },
+        },
+      }),
+    );
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    runNextFrame();
+
+    expect(gameService.sendPlayerHit).toHaveBeenCalledWith('remote-player', 25);
+    expect(component.explosionStore.explosions()).toHaveLength(1);
+  });
+
+  it('should apply server-confirmed damage to the local tank', () => {
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'local-player',
+            name: 'Erick',
+            position: { x: 1, y: 1, direction: 'right' },
+            health: 100,
+            maxHealth: 100,
+            status: 'active',
+          },
+        ],
+      }),
+    );
+
+    store.dispatch(
+      GameActions.playerHit({
+        player: {
+          id: 'local-player',
+          name: 'Erick',
+          position: { x: 1, y: 1, direction: 'right' },
+          health: 75,
+          maxHealth: 100,
+          status: 'active',
+        },
+      }),
+    );
+
+    expect(component.localTank.health).toBe(75);
   });
 
   it('should destroy a horizontal strip when a vertical shot hits a wall', () => {

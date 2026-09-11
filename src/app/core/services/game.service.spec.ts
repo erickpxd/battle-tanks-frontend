@@ -121,11 +121,15 @@ describe('GameService', () => {
     );
 
     service.sendPlayerMove({ x: 8, y: 6, direction: 'right' });
+    service.sendPlayerHit('target-player', 25);
     service.sendChatMessage('  Olá, tanque!  ');
 
     expect(
       connection.invocations.find(({ methodName }) => methodName === 'MovePlayer')?.args[0],
     ).toEqual(expect.objectContaining({ x: 8, y: 6, direction: 'right' }));
+    expect(
+      connection.invocations.find(({ methodName }) => methodName === 'HitPlayer')?.args[0],
+    ).toEqual(expect.objectContaining({ targetPlayerId: 'target-player', damage: 25 }));
     expect(
       connection.invocations.find(({ methodName }) => methodName === 'SendChatMessage')?.args[0],
     ).toEqual(expect.objectContaining({ message: 'Olá, tanque!' }));
@@ -163,6 +167,7 @@ describe('GameService', () => {
     });
 
     expect(connection.handlerCount('ReceivePlayerMove')).toBe(1);
+    expect(connection.handlerCount('ReceivePlayerHit')).toBe(1);
     expect(connection.handlerCount('ReceiveChatMessage')).toBe(1);
   });
 });

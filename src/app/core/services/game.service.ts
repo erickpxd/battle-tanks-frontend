@@ -17,6 +17,7 @@ import { Player } from '../models/player.model';
 import { Position } from '../models/position.model';
 import {
   PlayerMoveRequest,
+  PlayerHitRequest,
   RealtimeAck,
   RealtimeChatRequest,
   RealtimeMapTileChange,
@@ -28,6 +29,7 @@ import {
   selectConnectionStatus,
   selectLastChatMessage,
   selectLastMapTileChange,
+  selectLastPlayerHit,
   selectLastPlayerMove,
   selectLocalPlayerId,
   selectPlayers,
@@ -137,6 +139,19 @@ export class GameService implements OnDestroy {
     this.invokeWithBenchmark('DestroyMapTile', request);
   }
 
+  sendPlayerHit(targetPlayerId: string, damage: number): void {
+    if (!targetPlayerId || !Number.isInteger(damage) || damage <= 0) {
+      return;
+    }
+
+    const request: PlayerHitRequest = {
+      targetPlayerId,
+      damage,
+      ...createRealtimeMetadata(),
+    };
+    this.invokeWithBenchmark('HitPlayer', request);
+  }
+
   sendChatMessage(message: string): void {
     const normalizedMessage = message.trim().slice(0, 250);
     if (!normalizedMessage) {
@@ -153,6 +168,13 @@ export class GameService implements OnDestroy {
   onPlayerMove(callback: (player: Player) => void): Subscription {
     return this.store
       .select(selectLastPlayerMove)
+      .pipe(filter((player): player is Player => player !== null))
+      .subscribe(callback);
+  }
+
+  onPlayerHit(callback: (player: Player) => void): Subscription {
+    return this.store
+      .select(selectLastPlayerHit)
       .pipe(filter((player): player is Player => player !== null))
       .subscribe(callback);
   }
@@ -215,6 +237,10 @@ export class GameService implements OnDestroy {
       this.benchmark.recordReceived();
       this.store.dispatch(GameActions.playerMoved({ player }));
     });
+    connection.on('ReceivePlayerHit', (player: Player) => {
+      this.benchmark.recordReceived();
+      this.store.dispatch(GameActions.playerHit({ player }));
+    });
     connection.on('ReceiveChatHistory', (messages: ChatMessage[]) => {
       this.store.dispatch(GameActions.chatHistoryReceived({ messages }));
     });
@@ -273,8 +299,8 @@ export class GameService implements OnDestroy {
   }
 
   private invokeWithBenchmark(
-    methodName: 'MovePlayer' | 'SendChatMessage' | 'DestroyMapTile',
-    request: PlayerMoveRequest | RealtimeChatRequest | RealtimeMapTileChange,
+    methodName: 'MovePlayer' | 'HitPlayer' | 'SendChatMessage' | 'DestroyMapTile',
+    request: PlayerMoveRequest | PlayerHitRequest | RealtimeChatRequest | RealtimeMapTileChange,
   ): void {
     if (this.connection?.state !== HubConnectionState.Connected || !this.joinedRoomCode) {
       return;
