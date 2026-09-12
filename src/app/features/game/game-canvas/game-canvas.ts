@@ -1,12 +1,18 @@
 import { AfterViewInit, Component, ElementRef, inject, OnDestroy, ViewChild } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Store } from '@ngrx/store';
+import { filter, Subscription } from 'rxjs';
 
-import { GameState } from '../../../core/models/game-state.model';
 import { MapTileChange } from '../../../core/models/map-tile-change.model';
 import { Player } from '../../../core/models/player.model';
 import { PlayerDirection, Position } from '../../../core/models/position.model';
 import { Tank, TankStatus } from '../../../core/models/tank.model';
 import { GameService } from '../../../core/services/game.service';
+import {
+  selectLastMapTileChange,
+  selectLastPlayerHit,
+  selectLocalPlayerId,
+  selectPlayers,
+} from '../../../core/store/game.selectors';
 import { BulletComponent, BulletState } from '../bullet/bullet.component';
 import { ExplosionSignalStore } from '../explosion/explosion.store';
 import { BattleMapSignalStore } from '../map/battle-map.store';
@@ -20,6 +26,8 @@ interface TankMovementAnimation {
 }
 
 const PROJECTILE_SPEED = 420;
+const PLAYER_HIT_DAMAGE = 25;
+const PROJECTILE_RADIUS = 3;
 
 const KEY_DIRECTIONS: Readonly<Record<string, PlayerDirection>> = {
   w: 'up',
@@ -74,7 +82,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   private lastMovementSentAt = Number.NEGATIVE_INFINITY;
   private lastSentPosition: Position = { ...this.localTank.position };
   private localPlayerId: string | null = null;
-  private latestPlayers: Player[] = [];
+  private latestPlayers: readonly Player[] = [];
   private localSpawnAssigned = false;
   private usingWindowResize = false;
 
@@ -116,7 +124,10 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.frameId = requestAnimationFrame(this.gameLoop);
   };
 
-  constructor(private readonly gameService: GameService) {}
+  constructor(
+    private readonly gameService: GameService,
+    private readonly store: Store,
+  ) {}
 
   ngAfterViewInit(): void {
     this.context = this.canvasRef.nativeElement.getContext('2d');
@@ -136,25 +147,32 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     window.addEventListener('keydown', this.handleKeyDown, { passive: false });
 
     this.subscriptions.add(
-      this.gameService.onPlayerMove((player) => this.updateRemotePlayer(player)),
-    );
-    this.subscriptions.add(
-      this.gameService.onGameState((state) => this.replaceRemotePlayers(state)),
-    );
-    this.subscriptions.add(
-      this.gameService.onPlayersUpdated((players) => {
+      this.store.select(selectPlayers).subscribe((players) => {
         this.replaceRemotePlayers({ players });
       }),
     );
     this.subscriptions.add(
-      this.gameService.onMapTileDestroyed((change) => {
-        if (this.mapStore.destroyTile(change.column, change.row)) {
-          this.addExplosionAtTile(change.column, change.row, true);
-        }
-      }),
+      this.store
+        .select(selectLastMapTileChange)
+        .pipe(filter((change): change is MapTileChange => change !== null))
+        .subscribe((change) => {
+          if (this.mapStore.destroyTile(change.column, change.row)) {
+            this.addExplosionAtTile(change.column, change.row, true);
+          }
+        }),
     );
     this.subscriptions.add(
-      this.gameService.localPlayerId$.subscribe((playerId) => {
+      this.store
+        .select(selectLastPlayerHit)
+        .pipe(filter((player): player is Player => player !== null))
+        .subscribe((player) => {
+          if (this.isLocalPlayer(player) && typeof player.health === 'number') {
+            this.tankStore.setHealth(player.health);
+          }
+        }),
+    );
+    this.subscriptions.add(
+      this.store.select(selectLocalPlayerId).subscribe((playerId) => {
         this.localPlayerId = playerId;
         if (playerId) {
           this.remotePlayers.delete(playerId);
@@ -283,6 +301,19 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   }
 
   private resolveProjectileCollision(projectile: BulletState, timestamp: number): boolean {
+    const hitPlayer = this.findProjectileHitPlayer(projectile);
+    if (hitPlayer) {
+      this.explosionStore.start({
+        x: projectile.x,
+        y: projectile.y,
+        startedAt: timestamp,
+        destructive: true,
+      });
+      this.projectile = undefined;
+      this.gameService.sendPlayerHit(hitPlayer.id, PLAYER_HIT_DAMAGE);
+      return true;
+    }
+
     const tileWidth = this.logicalWidth / this.battleMap.expandedColumns;
     const tileHeight = this.logicalHeight / this.battleMap.expandedRows;
     const column = Math.floor(projectile.x / tileWidth);
@@ -307,6 +338,26 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       this.gameService.sendMapTileDestroyed(change);
     }
     return true;
+  }
+
+  private findProjectileHitPlayer(projectile: BulletState): Player | undefined {
+    const cellWidth = this.logicalWidth / this.gridColumns;
+    const cellHeight = this.logicalHeight / this.gridRows;
+    const halfTankWidth = 16;
+    const halfTankHeight = 19;
+
+    return [...this.remotePlayers.values()].find((player) => {
+      if (player.status === 'destroyed') {
+        return false;
+      }
+
+      const centerX = player.position.x * cellWidth + cellWidth / 2;
+      const centerY = player.position.y * cellHeight + cellHeight / 2;
+      return (
+        Math.abs(projectile.x - centerX) <= halfTankWidth + PROJECTILE_RADIUS &&
+        Math.abs(projectile.y - centerY) <= halfTankHeight + PROJECTILE_RADIUS
+      );
+    });
   }
 
   private updateExplosions(timestamp: number): void {
@@ -382,14 +433,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.lastMovementSentAt = timestamp;
   }
 
-  private updateRemotePlayer(player: Player): void {
-    if (this.isLocalPlayer(player)) {
-      return;
-    }
-    this.remotePlayers.set(player.id, player);
-  }
-
-  private replaceRemotePlayers(state: GameState): void {
+  private replaceRemotePlayers(state: { players: readonly Player[] }): void {
     this.latestPlayers = state.players;
     this.selectLocalSpawnFromPlayers();
     this.remotePlayers.clear();
@@ -413,6 +457,11 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     const spawn = this.tankStore.spawns[playerIndex];
     if (playerIndex < 0 || !spawn || !this.tankStore.selectSpawn(spawn.player)) {
       return;
+    }
+
+    const localPlayer = this.latestPlayers[playerIndex];
+    if (localPlayer && typeof localPlayer.health === 'number') {
+      this.tankStore.setHealth(localPlayer.health);
     }
 
     this.renderedLocalTankPosition.x = spawn.x;
@@ -460,7 +509,15 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       this.localTank.status,
     );
     for (const player of this.remotePlayers.values()) {
-      this.drawTank(context, player.position, 32, 38, '#7fcf6b', player.name);
+      this.drawTank(
+        context,
+        player.position,
+        32,
+        38,
+        remoteTankColor(player),
+        player.name,
+        player.status ?? 'active',
+      );
     }
     this.drawProjectile(context);
     this.drawExplosions(context);
@@ -663,6 +720,21 @@ function tankColor(tank: Tank): string {
     return '#b28b31';
   }
   return '#f4c542';
+}
+
+function remoteTankColor(player: Player): string {
+  if (player.status === 'destroyed') {
+    return '#393a32';
+  }
+
+  const healthRatio = (player.health ?? 100) / (player.maxHealth ?? 100);
+  if (healthRatio <= 0.33) {
+    return '#31512c';
+  }
+  if (healthRatio <= 0.66) {
+    return '#4f8a43';
+  }
+  return '#7fcf6b';
 }
 
 function interpolate(from: number, to: number, progress: number): number {

@@ -1,123 +1,173 @@
-import { Observable, Subject } from 'rxjs';
-import { WebSocketSubject, WebSocketSubjectConfig } from 'rxjs/webSocket';
+import { TestBed } from '@angular/core/testing';
+import { HubConnection, HubConnectionState } from '@microsoft/signalr';
+import { provideStore } from '@ngrx/store';
 
-import { GameSocketEvent } from '../models/game-event.model';
-import { Position } from '../models/position.model';
-import { ConnectionStatus, GameService } from './game.service';
+import { GAME_CONFIG } from '../config/game.config';
+import { Player } from '../models/player.model';
+import { gameFeatureKey, gameReducer } from '../store/game.reducer';
+import {
+  GameService,
+  REALTIME_HUB_CONNECTION_FACTORY,
+  RealtimeHubConnectionFactory,
+} from './game.service';
 
-class MockSocket extends Observable<unknown> {
-  readonly sent: unknown[] = [];
-  completed = false;
-  private readonly incoming = new Subject<unknown>();
+class FakeHubConnection {
+  state = HubConnectionState.Disconnected;
+  readonly invocations: Array<{ methodName: string; args: unknown[] }> = [];
+  private readonly handlers = new Map<string, Array<(...args: any[]) => void>>();
+  private closeHandler?: (error?: Error) => void;
+  private reconnectingHandler?: (error?: Error) => void;
+  private reconnectedHandler?: (connectionId?: string) => void;
 
-  constructor() {
-    super((subscriber) => this.incoming.subscribe(subscriber));
+  async start(): Promise<void> {
+    this.state = HubConnectionState.Connected;
   }
 
-  next(value: unknown): void {
-    this.sent.push(value);
+  async stop(): Promise<void> {
+    this.state = HubConnectionState.Disconnected;
+    this.closeHandler?.();
   }
 
-  complete(): void {
-    this.completed = true;
-    this.incoming.complete();
-  }
-}
-
-class TestGameService extends GameService {
-  readonly mockSocket = new MockSocket();
-  socketConfig?: WebSocketSubjectConfig<unknown>;
-
-  openConnection(): void {
-    this.socketConfig?.openObserver?.next(new Event('open'));
+  async invoke<T>(methodName: string, ...args: unknown[]): Promise<T> {
+    this.invocations.push({ methodName, args });
+    const request = args[0] as { eventId?: string; clientSentAtUnixMs?: number } | undefined;
+    return {
+      eventId: request?.eventId ?? '',
+      clientSentAtUnixMs: request?.clientSentAtUnixMs ?? 0,
+      serverReceivedAt: new Date().toISOString(),
+    } as T;
   }
 
-  protected override createSocket(
-    config: WebSocketSubjectConfig<unknown>,
-  ): WebSocketSubject<unknown> {
-    this.socketConfig = config;
-    return this.mockSocket as unknown as WebSocketSubject<unknown>;
+  on(methodName: string, callback: (...args: any[]) => void): void {
+    const callbacks = this.handlers.get(methodName) ?? [];
+    callbacks.push(callback);
+    this.handlers.set(methodName, callbacks);
+  }
+
+  onclose(callback: (error?: Error) => void): void {
+    this.closeHandler = callback;
+  }
+
+  onreconnecting(callback: (error?: Error) => void): void {
+    this.reconnectingHandler = callback;
+  }
+
+  onreconnected(callback: (connectionId?: string) => void): void {
+    this.reconnectedHandler = callback;
+  }
+
+  emit(methodName: string, payload: unknown): void {
+    for (const callback of this.handlers.get(methodName) ?? []) {
+      callback(payload);
+    }
+  }
+
+  handlerCount(methodName: string): number {
+    return this.handlers.get(methodName)?.length ?? 0;
+  }
+
+  reconnect(): void {
+    this.reconnectingHandler?.();
+    this.state = HubConnectionState.Connected;
+    this.reconnectedHandler?.('connection-2');
   }
 }
 
 describe('GameService', () => {
-  let service: TestGameService;
-  let statuses: ConnectionStatus[];
+  let service: GameService;
+  let connection: FakeHubConnection;
 
   beforeEach(() => {
-    service = new TestGameService();
-    statuses = [];
-    service.connectionStatus$.subscribe((status) => statuses.push(status));
+    sessionStorage.clear();
+    connection = new FakeHubConnection();
+    const connectionFactory: RealtimeHubConnectionFactory = () =>
+      connection as unknown as HubConnection;
+
+    TestBed.configureTestingModule({
+      providers: [
+        provideStore({ [gameFeatureKey]: gameReducer }),
+        { provide: REALTIME_HUB_CONNECTION_FACTORY, useValue: connectionFactory },
+      ],
+    });
+    service = TestBed.inject(GameService);
   });
 
   afterEach(() => {
     service.ngOnDestroy();
   });
 
-  it('should start disconnected and not send without a connection', () => {
-    service.sendChatMessage('Olá');
-    service.sendPlayerMove({ x: 10, y: 20, direction: 'right' });
+  it('should connect once and join the saved room', async () => {
+    sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, 'tank-1234');
+    service.joinRoom('Erick');
 
-    expect(statuses[0]).toBe('disconnected');
-    expect(service.mockSocket.sent).toEqual([]);
+    service.connect();
+    service.connect();
+    await vi.waitFor(() => {
+      expect(connection.invocations).toContainEqual({
+        methodName: 'JoinRoom',
+        args: ['TANK-1234'],
+      });
+    });
+
+    expect(connection.state).toBe(HubConnectionState.Connected);
   });
 
-  it('should create one connection and update its status when opened', () => {
+  it('should send movement and chat through hub invocations', async () => {
+    sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, 'TANK-1234');
+    service.joinRoom('Erick');
     service.connect();
-    service.connect();
+    await vi.waitFor(() =>
+      expect(connection.invocations.some(({ methodName }) => methodName === 'JoinRoom')).toBe(true),
+    );
 
-    expect(statuses).toEqual(['disconnected', 'connecting']);
-    service.openConnection();
-    expect(statuses.at(-1)).toBe('connected');
-  });
-
-  it('should create a trimmed player join event after the socket opens', () => {
-    service.connect();
-    service.joinRoom('  Erick   Silva  ');
-    expect(service.mockSocket.sent).toEqual([]);
-
-    service.openConnection();
-
-    expect(service.mockSocket.sent).toContainEqual({
-      type: 'player:join',
-      payload: { name: 'Erick Silva' },
-    } satisfies GameSocketEvent);
-  });
-
-  it('should create movement and trimmed chat events', () => {
-    const position: Position = { x: 100, y: 80, direction: 'right' };
-    service.connect();
-    service.openConnection();
-
-    service.sendPlayerMove(position);
+    service.sendPlayerMove({ x: 8, y: 6, direction: 'right' });
+    service.sendPlayerHit('target-player', 25);
     service.sendChatMessage('  Olá, tanque!  ');
 
-    expect(service.mockSocket.sent).toContainEqual({ type: 'player:move', payload: position });
-    expect(service.mockSocket.sent).toContainEqual({
-      type: 'chat:send',
-      payload: { message: 'Olá, tanque!' },
-    });
+    expect(
+      connection.invocations.find(({ methodName }) => methodName === 'MovePlayer')?.args[0],
+    ).toEqual(expect.objectContaining({ x: 8, y: 6, direction: 'right' }));
+    expect(
+      connection.invocations.find(({ methodName }) => methodName === 'HitPlayer')?.args[0],
+    ).toEqual(expect.objectContaining({ targetPlayerId: 'target-player', damage: 25 }));
+    expect(
+      connection.invocations.find(({ methodName }) => methodName === 'SendChatMessage')?.args[0],
+    ).toEqual(expect.objectContaining({ message: 'Olá, tanque!' }));
   });
 
-  it('should create a map destruction event', () => {
+  it('should expose received movements only after the SignalR handler dispatches them', () => {
+    const received: Player[] = [];
+    service.onPlayerMove((player) => received.push(player));
     service.connect();
-    service.openConnection();
+    const player: Player = {
+      id: 'remote-player',
+      name: 'Ana',
+      position: { x: 4, y: 3, direction: 'left' },
+    };
 
-    service.sendMapTileDestroyed({ column: 12, row: 7 });
+    connection.emit('ReceivePlayerMove', player);
 
-    expect(service.mockSocket.sent).toContainEqual({
-      type: 'map:tile-destroyed',
-      payload: { column: 12, row: 7 },
-    });
+    expect(received).toEqual([player]);
   });
 
-  it('should close the shared socket when disconnected', () => {
+  it('should not duplicate event handlers during automatic reconnection', async () => {
+    sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, 'TANK-1234');
+    service.joinRoom('Erick');
     service.connect();
-    service.openConnection();
+    await vi.waitFor(() => {
+      const joins = connection.invocations.filter(({ methodName }) => methodName === 'JoinRoom');
+      expect(joins).toHaveLength(1);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    service.disconnect();
+    connection.reconnect();
+    await vi.waitFor(() => {
+      const joins = connection.invocations.filter(({ methodName }) => methodName === 'JoinRoom');
+      expect(joins).toHaveLength(2);
+    });
 
-    expect(service.mockSocket.completed).toBe(true);
-    expect(statuses.at(-1)).toBe('disconnected');
+    expect(connection.handlerCount('ReceivePlayerMove')).toBe(1);
+    expect(connection.handlerCount('ReceivePlayerHit')).toBe(1);
+    expect(connection.handlerCount('ReceiveChatMessage')).toBe(1);
   });
 });

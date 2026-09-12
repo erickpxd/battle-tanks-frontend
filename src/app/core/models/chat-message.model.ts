@@ -4,4 +4,7 @@ export interface ChatMessage {
   playerName: string;
   message: string;
   timestamp: string;
+  eventId?: string;
+  clientSentAtUnixMs?: number;
+  serverReceivedAt?: string;
 }

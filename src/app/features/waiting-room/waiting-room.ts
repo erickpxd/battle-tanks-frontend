@@ -1,7 +1,15 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { Store } from '@ngrx/store';
 import { Subscription } from 'rxjs';
 
 import { GAME_CONFIG } from '../../core/config/game.config';
@@ -10,6 +18,12 @@ import { Player } from '../../core/models/player.model';
 import { RoomModel } from '../../core/models/room.model';
 import { ConnectionStatus, GameService } from '../../core/services/game.service';
 import { RoomApiService } from '../../core/services/room-api.service';
+import {
+  selectChatMessages,
+  selectConnectionError,
+  selectConnectionStatus,
+  selectPlayers,
+} from '../../core/store/game.selectors';
 
 @Component({
   selector: 'app-waiting-room',
@@ -37,6 +51,8 @@ export class WaitingRoom implements OnInit, OnDestroy {
     private readonly gameService: GameService,
     private readonly roomApiService: RoomApiService,
     private readonly router: Router,
+    private readonly store: Store,
+    private readonly changeDetectorRef: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -48,28 +64,32 @@ export class WaitingRoom implements OnInit, OnDestroy {
     }
 
     this.subscriptions.add(
-      this.gameService.connectionStatus$.subscribe((status) => {
+      this.store.select(selectConnectionStatus).subscribe((status) => {
         this.connectionStatus = status;
+        this.changeDetectorRef.markForCheck();
       }),
     );
     this.subscriptions.add(
-      this.gameService.errorMessage$.subscribe((message) => {
+      this.store.select(selectConnectionError).subscribe((message) => {
         this.connectionError = message;
+        this.changeDetectorRef.markForCheck();
       }),
     );
     this.subscriptions.add(
-      this.gameService.onPlayersUpdated((players) => {
-        this.players = players;
+      this.store.select(selectPlayers).subscribe((players) => {
+        this.players = [...players];
+        this.changeDetectorRef.markForCheck();
+        this.fetchRoomsFromApi();
       }),
     );
     this.subscriptions.add(
-      this.gameService.onChatMessagesUpdated((messages) => {
-        this.messages = messages;
+      this.store.select(selectChatMessages).subscribe((messages) => {
+        this.messages = [...messages];
+        this.changeDetectorRef.markForCheck();
         queueMicrotask(() => this.scrollChatToEnd());
       }),
     );
 
-    this.fetchRoomsFromApi();
     this.roomsIntervalId = setInterval(() => this.fetchRoomsFromApi(), 3000);
 
     this.gameService.joinRoom(this.savedPlayerName);
@@ -80,6 +100,7 @@ export class WaitingRoom implements OnInit, OnDestroy {
     this.roomApiService.getRooms().subscribe({
       next: (rooms) => {
         this.availableRooms = rooms;
+        this.changeDetectorRef.markForCheck();
       },
       error: () => {
         // Non-blocking for room display
