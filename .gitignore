@@ -2,6 +2,7 @@
 
 # Compiled output
 /dist
+/benchmark-results
 /tmp
 /out-tsc
 /bazel-out

@@ -1,5 +1,6 @@
 import { ChatMessage } from '../models/chat-message.model';
 import { Player } from '../models/player.model';
+import { GameEventEnvelope } from '../models/mqtt-game-event.model';
 import { GameActions } from './game.actions';
 import { gameReducer, initialRealtimeGameState } from './game.reducer';
 
@@ -54,5 +55,50 @@ describe('gameReducer', () => {
 
     expect(state.players).toEqual([hitPlayer]);
     expect(state.lastPlayerHit).toEqual(hitPlayer);
+  });
+
+  it('should restore history and ignore a duplicate live MQTT delivery', () => {
+    const gameEvent: GameEventEnvelope = {
+      eventId: 'mqtt-event-1',
+      eventType: 'collision.player-hit',
+      roomId: 'ROOM-ONE',
+      playerId: 'player-1',
+      sentAtUnixMs: 1000,
+      publishedAtUnixMs: 1010,
+      data: { targetPlayerId: 'player-2', damage: 25, remainingHealth: 75, status: 'active' },
+    };
+
+    const restored = gameReducer(
+      initialRealtimeGameState,
+      GameActions.gameEventHistoryReceived({ gameEvents: [gameEvent] }),
+    );
+    const duplicate = gameReducer(restored, GameActions.mqttGameEventReceived({ gameEvent }));
+
+    expect(duplicate.gameEvents).toEqual([gameEvent]);
+    expect(duplicate.processedGameEventIds).toEqual(['mqtt-event-1']);
+    expect(duplicate.lastGameEvent).toEqual(gameEvent);
+  });
+
+  it('should expose a game-ended MQTT event in state', () => {
+    const gameEvent: GameEventEnvelope = {
+      eventId: 'game-ended-1',
+      eventType: 'game.ended',
+      roomId: 'ROOM-ONE',
+      playerId: 'player-1',
+      sentAtUnixMs: 1000,
+      publishedAtUnixMs: 1010,
+      data: {
+        defeatedPlayerId: 'player-2',
+        winnerPlayerId: 'player-1',
+        triggerEventId: 'hit-1',
+      },
+    };
+
+    const state = gameReducer(
+      initialRealtimeGameState,
+      GameActions.mqttGameEventReceived({ gameEvent }),
+    );
+
+    expect(state.gameEnded).toEqual(gameEvent);
   });
 });

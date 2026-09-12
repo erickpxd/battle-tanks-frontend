@@ -14,6 +14,7 @@ import { Subscription } from 'rxjs';
 
 import { GAME_CONFIG } from '../../core/config/game.config';
 import { ChatMessage } from '../../core/models/chat-message.model';
+import { MqttConnectionStatus } from '../../core/models/mqtt-game-event.model';
 import { Player } from '../../core/models/player.model';
 import { RoomModel } from '../../core/models/room.model';
 import { ConnectionStatus, GameService } from '../../core/services/game.service';
@@ -22,6 +23,7 @@ import {
   selectChatMessages,
   selectConnectionError,
   selectConnectionStatus,
+  selectMqttConnectionStatus,
   selectPlayers,
 } from '../../core/store/game.selectors';
 
@@ -37,6 +39,7 @@ export class WaitingRoom implements OnInit, OnDestroy {
   chatText = '';
   connectionError: string | null = null;
   connectionStatus: ConnectionStatus = 'disconnected';
+  mqttConnectionStatus: MqttConnectionStatus = 'disconnected';
   players: Player[] = [];
   messages: ChatMessage[] = [];
   availableRooms: RoomModel[] = [];
@@ -66,6 +69,12 @@ export class WaitingRoom implements OnInit, OnDestroy {
     this.subscriptions.add(
       this.store.select(selectConnectionStatus).subscribe((status) => {
         this.connectionStatus = status;
+        this.changeDetectorRef.markForCheck();
+      }),
+    );
+    this.subscriptions.add(
+      this.store.select(selectMqttConnectionStatus).subscribe((status) => {
+        this.mqttConnectionStatus = status;
         this.changeDetectorRef.markForCheck();
       }),
     );
@@ -147,6 +156,16 @@ export class WaitingRoom implements OnInit, OnDestroy {
       error: 'Erro de conexão',
     };
     return labels[this.connectionStatus];
+  }
+
+  mqttConnectionLabel(): string {
+    const labels: Record<MqttConnectionStatus, string> = {
+      disconnected: 'MQTT desconectado',
+      connecting: 'MQTT conectando…',
+      connected: 'MQTT conectado',
+      error: 'Erro MQTT',
+    };
+    return labels[this.mqttConnectionStatus];
   }
 
   ngOnDestroy(): void {

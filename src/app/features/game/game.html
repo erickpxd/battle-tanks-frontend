@@ -12,6 +12,9 @@
           <span class="status" [class.status--connected]="connectionStatus === 'connected'">
             {{ connectionLabel() }}
           </span>
+          <span class="status" [class.status--connected]="mqttConnectionStatus === 'connected'">
+            {{ mqttConnectionLabel() }}
+          </span>
         }
         <button type="button" class="button button--secondary" (click)="backToWaitingRoom()">
           {{ isTutorial ? 'Voltar ao menu' : 'Voltar à sala' }}
@@ -23,6 +26,14 @@
   <section class="battle-panel">
     <app-game-canvas />
   </section>
+
+  <!-- EVIDÊNCIA LAB 06: capturar esta notificação e a action correspondente no NgRx DevTools. -->
+  @if (latestGameEventLabel) {
+    <p class="mqtt-event" role="status">{{ latestGameEventLabel }}</p>
+  }
+  @if (gameEndedMessage) {
+    <p class="game-ended" role="alert">{{ gameEndedMessage }}</p>
+  }
 
   <aside class="controls" aria-label="Controles do tanque">
     <strong>Controles</strong>

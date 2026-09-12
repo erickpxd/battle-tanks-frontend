@@ -101,6 +101,21 @@ kbd {
   text-align: center;
 }
 
+.mqtt-event,
+.game-ended {
+  border-left: 5px solid var(--success);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.8rem;
+  margin: 0.8rem 0 0;
+  padding: 0.65rem 0.8rem;
+}
+
+.game-ended {
+  border-left-color: var(--warning);
+  color: var(--warning);
+}
+
 @media (max-width: 650px) {
   .match-bar {
     align-items: stretch;

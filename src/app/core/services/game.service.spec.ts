@@ -5,6 +5,7 @@ import { provideStore } from '@ngrx/store';
 import { GAME_CONFIG } from '../config/game.config';
 import { Player } from '../models/player.model';
 import { gameFeatureKey, gameReducer } from '../store/game.reducer';
+import { MqttGameService } from './mqtt-game.service';
 import {
   GameService,
   REALTIME_HUB_CONNECTION_FACTORY,
@@ -87,6 +88,10 @@ describe('GameService', () => {
       providers: [
         provideStore({ [gameFeatureKey]: gameReducer }),
         { provide: REALTIME_HUB_CONNECTION_FACTORY, useValue: connectionFactory },
+        {
+          provide: MqttGameService,
+          useValue: { joinRoom: vi.fn(), leaveRoom: vi.fn() },
+        },
       ],
     });
     service = TestBed.inject(GameService);

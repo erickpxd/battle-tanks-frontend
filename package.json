@@ -6,6 +6,7 @@
     "start": "ng serve",
     "build": "ng build",
     "benchmark:signalr": "node scripts/signalr-benchmark.mjs",
+    "benchmark:lab06": "node scripts/realtime-benchmark.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
@@ -21,6 +22,7 @@
     "@microsoft/signalr": "^10.0.11",
     "@ngrx/store": "^22.0.0-rc.0",
     "@ngrx/store-devtools": "^22.0.0-rc.0",
+    "mqtt": "^5.15.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

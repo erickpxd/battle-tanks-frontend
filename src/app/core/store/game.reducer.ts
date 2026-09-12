@@ -3,6 +3,11 @@ import { createReducer, on } from '@ngrx/store';
 import { ChatMessage } from '../models/chat-message.model';
 import { ConnectionStatus } from '../models/connection-status.model';
 import { MapTileChange } from '../models/map-tile-change.model';
+import {
+  GameEndedEventData,
+  GameEventEnvelope,
+  MqttConnectionStatus,
+} from '../models/mqtt-game-event.model';
 import { Player } from '../models/player.model';
 import { GameActions } from './game.actions';
 
@@ -18,6 +23,11 @@ export interface RealtimeGameState {
   readonly lastPlayerHit: Player | null;
   readonly lastChatMessage: ChatMessage | null;
   readonly lastMapTileChange: MapTileChange | null;
+  readonly mqttConnectionStatus: MqttConnectionStatus;
+  readonly gameEvents: readonly GameEventEnvelope[];
+  readonly processedGameEventIds: readonly string[];
+  readonly lastGameEvent: GameEventEnvelope | null;
+  readonly gameEnded: GameEventEnvelope<GameEndedEventData> | null;
 }
 
 export const initialRealtimeGameState: RealtimeGameState = {
@@ -30,6 +40,11 @@ export const initialRealtimeGameState: RealtimeGameState = {
   lastPlayerHit: null,
   lastChatMessage: null,
   lastMapTileChange: null,
+  mqttConnectionStatus: 'disconnected',
+  gameEvents: [],
+  processedGameEventIds: [],
+  lastGameEvent: null,
+  gameEnded: null,
 };
 
 export const gameReducer = createReducer(
@@ -88,8 +103,40 @@ export const gameReducer = createReducer(
     ...state,
     lastMapTileChange: change,
   })),
+  on(GameActions.mqttConnectionStatusChanged, (state, { status }) => ({
+    ...state,
+    mqttConnectionStatus: status,
+  })),
+  on(GameActions.gameEventHistoryReceived, (state, { gameEvents }) =>
+    gameEvents.reduce(applyGameEvent, state),
+  ),
+  on(GameActions.mqttGameEventReceived, (state, { gameEvent }) =>
+    applyGameEvent(state, gameEvent),
+  ),
   on(GameActions.realtimeStateReset, () => initialRealtimeGameState),
 );
+
+function applyGameEvent(
+  state: RealtimeGameState,
+  gameEvent: GameEventEnvelope,
+): RealtimeGameState {
+  if (state.processedGameEventIds.includes(gameEvent.eventId)) {
+    return state;
+  }
+
+  const gameEvents = [...state.gameEvents, gameEvent].slice(-100);
+  const processedGameEventIds = [...state.processedGameEventIds, gameEvent.eventId].slice(-200);
+  return {
+    ...state,
+    gameEvents,
+    processedGameEventIds,
+    lastGameEvent: gameEvent,
+    gameEnded:
+      gameEvent.eventType === 'game.ended'
+        ? (gameEvent as GameEventEnvelope<GameEndedEventData>)
+        : state.gameEnded,
+  };
+}
 
 function upsertPlayer(players: readonly Player[], updatedPlayer: Player): Player[] {
   const index = players.findIndex((player) => player.id === updatedPlayer.id);

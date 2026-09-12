@@ -13,6 +13,7 @@ import { ChatMessage } from '../models/chat-message.model';
 import { ConnectionStatus } from '../models/connection-status.model';
 import { GameState } from '../models/game-state.model';
 import { MapTileChange } from '../models/map-tile-change.model';
+import { GameEventEnvelope } from '../models/mqtt-game-event.model';
 import { Player } from '../models/player.model';
 import { Position } from '../models/position.model';
 import {
@@ -35,6 +36,7 @@ import {
   selectPlayers,
 } from '../store/game.selectors';
 import { AuthService } from './auth.service';
+import { MqttGameService } from './mqtt-game.service';
 import { RealtimeBenchmarkReport, RealtimeBenchmarkService } from './realtime-benchmark.service';
 
 export type { ConnectionStatus } from '../models/connection-status.model';
@@ -64,6 +66,7 @@ export class GameService implements OnDestroy {
   private readonly store = inject(Store);
   private readonly createConnection = inject(REALTIME_HUB_CONNECTION_FACTORY);
   private readonly benchmark = inject(RealtimeBenchmarkService);
+  private readonly mqtt = inject(MqttGameService);
 
   private connection?: HubConnection;
   private pendingRoomCode: string | null = null;
@@ -96,6 +99,7 @@ export class GameService implements OnDestroy {
     this.pendingRoomCode = null;
     this.joinedRoomCode = null;
     this.joinPromise = undefined;
+    this.mqtt.leaveRoom();
     const stop =
       this.connection?.state === HubConnectionState.Disconnected
         ? Promise.resolve()
@@ -238,7 +242,13 @@ export class GameService implements OnDestroy {
       this.store.dispatch(GameActions.playerMoved({ player }));
     });
     connection.on('ReceivePlayerHit', (player: Player) => {
-      this.benchmark.recordReceived();
+      this.benchmark.recordProtocolReceived(
+        'SignalR',
+        'collision.player-hit',
+        player.eventId,
+        player.clientSentAtUnixMs,
+        this.joinedRoomCode ?? this.pendingRoomCode ?? '',
+      );
       this.store.dispatch(GameActions.playerHit({ player }));
     });
     connection.on('ReceiveChatHistory', (messages: ChatMessage[]) => {
@@ -249,8 +259,17 @@ export class GameService implements OnDestroy {
       this.store.dispatch(GameActions.chatMessageReceived({ message }));
     });
     connection.on('ReceiveMapTileDestroyed', (change: RealtimeMapTileChange) => {
-      this.benchmark.recordReceived();
+      this.benchmark.recordProtocolReceived(
+        'SignalR',
+        'map.tile-destroyed',
+        change.eventId,
+        change.clientSentAtUnixMs,
+        this.joinedRoomCode ?? this.pendingRoomCode ?? '',
+      );
       this.store.dispatch(GameActions.mapTileDestroyed({ change }));
+    });
+    connection.on('ReceiveGameEventHistory', (gameEvents: GameEventEnvelope[]) => {
+      this.store.dispatch(GameActions.gameEventHistoryReceived({ gameEvents }));
     });
     connection.onreconnecting(() => {
       this.store.dispatch(GameActions.connectionStatusChanged({ status: 'connecting' }));
@@ -289,6 +308,7 @@ export class GameService implements OnDestroy {
         .invoke<void>('JoinRoom', roomCode)
         .then(() => {
           this.joinedRoomCode = roomCode;
+          this.mqtt.joinRoom(roomCode);
         })
         .catch((error: unknown) => this.handleConnectionError(error))
         .finally(() => {
