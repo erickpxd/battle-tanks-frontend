@@ -42,6 +42,13 @@
   }
 }
 
+.connection-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
 .eyebrow {
   color: var(--accent-soft);
   font-size: 0.75rem;

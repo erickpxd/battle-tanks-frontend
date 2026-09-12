@@ -37,3 +37,19 @@ export const selectLastMapTileChange = createSelector(
   selectRealtimeGameState,
   (state) => state.lastMapTileChange,
 );
+export const selectMqttConnectionStatus = createSelector(
+  selectRealtimeGameState,
+  (state) => state.mqttConnectionStatus,
+);
+export const selectGameEvents = createSelector(
+  selectRealtimeGameState,
+  (state) => state.gameEvents,
+);
+export const selectLastGameEvent = createSelector(
+  selectRealtimeGameState,
+  (state) => state.lastGameEvent,
+);
+export const selectGameEnded = createSelector(
+  selectRealtimeGameState,
+  (state) => state.gameEnded,
+);

@@ -8,9 +8,18 @@
         Sala: <strong>{{ savedRoomCode }}</strong> · Comandante:
         <strong>{{ savedPlayerName }}</strong>
       </p>
-      <div class="connection" [class]="'connection connection--' + connectionStatus">
-        <span aria-hidden="true"></span>
-        {{ connectionLabel() }}
+      <div class="connection-list" aria-label="Conexões em tempo real">
+        <div class="connection" [class]="'connection connection--' + connectionStatus">
+          <span aria-hidden="true"></span>
+          SignalR: {{ connectionLabel() }}
+        </div>
+        <div
+          class="connection"
+          [class]="'connection connection--' + mqttConnectionStatus"
+        >
+          <span aria-hidden="true"></span>
+          {{ mqttConnectionLabel() }}
+        </div>
       </div>
     </div>
   </header>

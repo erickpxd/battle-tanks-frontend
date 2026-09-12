@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { provideStore } from '@ngrx/store';
 import { BehaviorSubject } from 'rxjs';
 
 import { GAME_CONFIG } from '../../core/config/game.config';
 import { ConnectionStatus, GameService } from '../../core/services/game.service';
+import { gameFeatureKey, gameReducer } from '../../core/store/game.reducer';
 import { Game } from './game';
 
 describe('Game', () => {
@@ -20,7 +22,11 @@ describe('Game', () => {
     vi.clearAllMocks();
     await TestBed.configureTestingModule({
       imports: [Game],
-      providers: [provideRouter([]), { provide: GameService, useValue: gameService }],
+      providers: [
+        provideRouter([]),
+        provideStore({ [gameFeatureKey]: gameReducer }),
+        { provide: GameService, useValue: gameService },
+      ],
     })
       .overrideComponent(Game, {
         set: {
