@@ -1,10 +1,15 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, map } from 'rxjs/operators';
 
 import { GAME_CONFIG } from '../config/game.config';
-import { CreateRoomRequest, JoinRoomByCodeRequest, RoomModel } from '../models/room.model';
+import {
+  CreateRoomRequest,
+  JoinRoomByCodeRequest,
+  PagedRoomsResponse,
+  RoomModel,
+} from '../models/room.model';
 import { AuthService } from './auth.service';
 
 @Injectable({
@@ -16,10 +21,18 @@ export class RoomApiService {
     private readonly authService: AuthService,
   ) {}
 
-  getRooms(): Observable<RoomModel[]> {
+  getRooms(page: number = 1, pageSize: number = 50): Observable<RoomModel[]> {
     return this.http
-      .get<RoomModel[]>(`${GAME_CONFIG.apiUrl}/api/room`)
-      .pipe(catchError((error) => this.handleError(error)));
+      .get<PagedRoomsResponse>(`${GAME_CONFIG.apiUrl}/api/room`, {
+        params: {
+          page: String(page),
+          pageSize: String(pageSize),
+        },
+      })
+      .pipe(
+        map((response) => response.items ?? []),
+        catchError((error) => this.handleError(error)),
+      );
   }
 
   createRoom(mapSelected: string = 'default'): Observable<RoomModel> {

@@ -14,3 +14,11 @@ export interface RoomModel {
   playerCount: number;
   players: string[];
 }
+
+export interface PagedRoomsResponse {
+  items: RoomModel[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+}
