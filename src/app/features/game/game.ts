@@ -16,6 +16,7 @@ import {
   selectLastGameEvent,
   selectMqttConnectionStatus,
 } from '../../core/store/game.selectors';
+import { GameActions } from '../../core/store/game.actions';
 import { GameCanvas } from './game-canvas/game-canvas';
 
 @Component({
@@ -83,6 +84,7 @@ export class Game implements OnInit, OnDestroy {
   }
 
   backToWaitingRoom(): void {
+    this.store.dispatch(GameActions.connectionErrorChanged({ message: null }));
     void this.router.navigate([this.isTutorial ? '/menu' : '/waiting-room']);
   }
 

@@ -325,7 +325,15 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
 
     const definition = terrainDefinition(tile);
     const destroyed = definition.destructible
-      ? this.mapStore.destroyTiles(projectileImpactTiles(column, row, projectile.direction))
+      ? this.mapStore.destroyTiles(
+          projectileImpactTiles(
+            column,
+            row,
+            projectile.direction,
+            this.battleMap.expandedColumns,
+            this.battleMap.expandedRows,
+          ),
+        )
       : [];
     this.explosionStore.start({
       x: projectile.x,
@@ -700,11 +708,23 @@ function projectileImpactTiles(
   column: number,
   row: number,
   direction: PlayerDirection,
+  mapColumns: number,
+  mapRows: number,
 ): MapTileChange[] {
-  if (direction === 'left' || direction === 'right') {
-    return [-1, 0, 1].map((rowOffset) => ({ column, row: row + rowOffset }));
-  }
-  return [-1, 0, 1].map((columnOffset) => ({ column: column + columnOffset, row }));
+  const candidates =
+    direction === 'left' || direction === 'right'
+      ? [-1, 0, 1].map((rowOffset) => ({ column, row: row + rowOffset }))
+      : [-1, 0, 1].map((columnOffset) => ({ column: column + columnOffset, row }));
+
+  return candidates.filter(
+    (tile) =>
+      Number.isInteger(tile.column) &&
+      Number.isInteger(tile.row) &&
+      tile.column >= 0 &&
+      tile.column < mapColumns &&
+      tile.row >= 0 &&
+      tile.row < mapRows,
+  );
 }
 
 function tankColor(tank: Tank): string {
