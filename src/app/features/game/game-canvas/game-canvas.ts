@@ -1,4 +1,13 @@
-import { AfterViewInit, Component, ElementRef, inject, OnDestroy, ViewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  inject,
+  NgZone,
+  OnDestroy,
+  ViewChild,
+} from '@angular/core';
 import { Store } from '@ngrx/store';
 import { filter, Subscription } from 'rxjs';
 
@@ -46,6 +55,7 @@ const KEY_DIRECTIONS: Readonly<Record<string, PlayerDirection>> = {
   providers: [BattleMapSignalStore, TankSignalStore, ExplosionSignalStore],
   templateUrl: './game-canvas.html',
   styleUrl: './game-canvas.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GameCanvas implements AfterViewInit, OnDestroy {
   @ViewChild('gameCanvas', { static: true }) private canvasRef!: ElementRef<HTMLCanvasElement>;
@@ -127,6 +137,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   constructor(
     private readonly gameService: GameService,
     private readonly store: Store,
+    private readonly zone: NgZone,
   ) {}
 
   ngAfterViewInit(): void {
@@ -136,15 +147,21 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     }
 
     this.resizeCanvas();
-    if (typeof ResizeObserver !== 'undefined') {
-      this.resizeObserver = new ResizeObserver(() => this.resizeCanvas());
-      this.resizeObserver.observe(this.canvasRef.nativeElement);
-    } else {
-      this.usingWindowResize = true;
-      window.addEventListener('resize', this.handleWindowResize);
-    }
+    // Keep rAF + keyboard outside Angular zone so Default/OnPush CD is not
+    // scheduled ~60×/s while the canvas paints imperatively.
+    this.zone.runOutsideAngular(() => {
+      if (typeof ResizeObserver !== 'undefined') {
+        this.resizeObserver = new ResizeObserver(() => this.resizeCanvas());
+        this.resizeObserver.observe(this.canvasRef.nativeElement);
+      } else {
+        this.usingWindowResize = true;
+        window.addEventListener('resize', this.handleWindowResize);
+      }
 
-    window.addEventListener('keydown', this.handleKeyDown, { passive: false });
+      window.addEventListener('keydown', this.handleKeyDown, { passive: false });
+      this.draw();
+      this.frameId = requestAnimationFrame(this.gameLoop);
+    });
 
     this.subscriptions.add(
       this.store.select(selectPlayers).subscribe((players) => {
@@ -180,9 +197,6 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         }
       }),
     );
-
-    this.draw();
-    this.frameId = requestAnimationFrame(this.gameLoop);
   }
 
   ngOnDestroy(): void {

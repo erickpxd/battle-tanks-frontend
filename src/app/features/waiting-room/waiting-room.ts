@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import {
+  ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   ElementRef,
@@ -32,6 +33,7 @@ import {
   imports: [CommonModule, FormsModule],
   templateUrl: './waiting-room.html',
   styleUrl: './waiting-room.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WaitingRoom implements OnInit, OnDestroy {
   @ViewChild('chatHistory') private chatHistory?: ElementRef<HTMLElement>;

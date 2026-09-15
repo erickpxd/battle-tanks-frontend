@@ -1,0 +1,21 @@
+CDP CPU profile top functions (hitCount)
+5408	(idle)
+170	(program)
+106	fillRect
+45	drawTerrainTile
+9	drawExpandedMap
+8	(garbage collector)
+7	requestAnimationFrame
+5	gameLoop
+5	(anonymous)
+4	draw
+4	clearRect
+3	drawTank
+3	moveTo
+2	translate
+2	terrainDefinition
+2	stroke
+1	tankColor
+1	directionAngle
+1	save
+1	restore
