@@ -1,0 +1,4 @@
+Lazy/network hits after Menu→Ranking:
+chunk-MI25I5J2.js
+component?c=src%2Fapp%2Ffeatures%2Franking%2Franking.ts%40Ranking&t=1788612590299
+top?take=10

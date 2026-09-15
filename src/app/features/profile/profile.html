@@ -1,0 +1,26 @@
+<main class="profile-page page-shell">
+  <section class="profile-panel" aria-labelledby="profile-title">
+    <h1 id="profile-title">Perfil</h1>
+
+    @if (isAuthenticated) {
+      <dl class="profile-fields">
+        <div>
+          <dt>Jogador</dt>
+          <dd>{{ username }}</dd>
+        </div>
+        <div>
+          <dt>Player ID</dt>
+          <dd class="mono">{{ playerId }}</dd>
+        </div>
+      </dl>
+    } @else {
+      <p>Faça login para ver o perfil da sessão.</p>
+      <a routerLink="/auth" class="button button--sm">Entrar / Registrar</a>
+    }
+
+    <div class="profile-actions">
+      <a routerLink="/ranking" class="button button--secondary button--sm">Ver classificação</a>
+      <a routerLink="/menu" class="button button--sm">Voltar ao menu</a>
+    </div>
+  </section>
+</main>

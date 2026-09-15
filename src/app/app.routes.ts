@@ -31,6 +31,16 @@ export const routes: Routes = [
     loadComponent: () => import('./features/game/game').then((component) => component.Game),
   },
   {
+    path: 'ranking',
+    loadComponent: () =>
+      import('./features/ranking/ranking').then((component) => component.Ranking),
+  },
+  {
+    path: 'profile',
+    loadComponent: () =>
+      import('./features/profile/profile').then((component) => component.Profile),
+  },
+  {
     path: '**',
     redirectTo: 'menu',
   },

@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { Subscription } from 'rxjs';
@@ -24,6 +24,7 @@ import { GameCanvas } from './game-canvas/game-canvas';
   imports: [GameCanvas],
   templateUrl: './game.html',
   styleUrl: './game.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Game implements OnInit, OnDestroy {
   playerName = '';
@@ -39,6 +40,7 @@ export class Game implements OnInit, OnDestroy {
     private readonly gameService: GameService,
     private readonly router: Router,
     private readonly store: Store,
+    private readonly changeDetectorRef: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -57,16 +59,19 @@ export class Game implements OnInit, OnDestroy {
     this.subscriptions.add(
       this.gameService.connectionStatus$.subscribe((status) => {
         this.connectionStatus = status;
+        this.changeDetectorRef.markForCheck();
       }),
     );
     this.subscriptions.add(
       this.store.select(selectMqttConnectionStatus).subscribe((status) => {
         this.mqttConnectionStatus = status;
+        this.changeDetectorRef.markForCheck();
       }),
     );
     this.subscriptions.add(
       this.store.select(selectLastGameEvent).subscribe((gameEvent) => {
         this.latestGameEventLabel = gameEvent ? describeGameEvent(gameEvent) : '';
+        this.changeDetectorRef.markForCheck();
       }),
     );
     this.subscriptions.add(
@@ -75,6 +80,7 @@ export class Game implements OnInit, OnDestroy {
         this.gameEndedMessage = data
           ? `Partida encerrada. Vencedor: ${data.winnerPlayerId ?? 'não definido'}.`
           : '';
+        this.changeDetectorRef.markForCheck();
       }),
     );
     if (this.connectionStatus !== 'connected') {

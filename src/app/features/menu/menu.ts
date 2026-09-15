@@ -1,6 +1,6 @@
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { GAME_CONFIG } from '../../core/config/game.config';
 import { AuthService } from '../../core/services/auth.service';
@@ -8,9 +8,10 @@ import { RoomApiService } from '../../core/services/room-api.service';
 
 @Component({
   selector: 'app-menu',
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   templateUrl: './menu.html',
   styleUrl: './menu.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Menu implements OnInit {
   playerName = '';
@@ -44,6 +45,7 @@ export class Menu implements OnInit {
   logout(): void {
     this.authService.logout();
     this.playerName = '';
+    this.cdr.markForCheck();
   }
 
   createRoom(): void {

@@ -118,6 +118,18 @@
   }
 }
 
+.menu-links {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.25rem;
+
+  a {
+    color: var(--accent, #5b9fd4);
+    font-size: 0.9rem;
+  }
+}
+
 @media (max-width: 480px) {
   .room-code-form {
     grid-template-columns: 1fr;

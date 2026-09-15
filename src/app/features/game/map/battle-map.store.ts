@@ -21,6 +21,12 @@ export class BattleMapSignalStore {
   private readonly destroyedPartsState = signal(0);
 
   readonly destroyedParts = this.destroyedPartsState.asReadonly();
+  readonly hasDestroyedParts = computed(() => this.destroyedPartsState() > 0);
+  readonly mapRevision = computed(() => this.revision());
+  readonly tileCount = computed(() => {
+    const matrix = this.tiles();
+    return matrix.reduce((sum, row) => sum + row.length, 0);
+  });
 
   destroyTile(column: number, row: number): boolean {
     return this.destroyTiles([{ column, row }]).length === 1;

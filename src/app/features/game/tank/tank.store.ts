@@ -23,7 +23,9 @@ export class TankSignalStore {
 
   readonly tank = computed(() => this.state().tank);
   readonly isActive = computed(() => this.tank().status === 'active');
+  readonly isDestroyed = computed(() => this.tank().status === 'destroyed');
   readonly healthPercentage = computed(() => this.tank().health / this.tank().maxHealth);
+  readonly healthLabel = computed(() => `${Math.round(this.healthPercentage() * 100)}%`);
 
   selectSpawn(player: number): boolean {
     const spawn = this.spawns.find((candidate) => candidate.player === player);
