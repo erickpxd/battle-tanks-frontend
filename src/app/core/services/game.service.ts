@@ -136,6 +136,18 @@ export class GameService implements OnDestroy {
   }
 
   sendMapTileDestroyed(change: MapTileChange): void {
+    // Expanded map is 20x15 * subdivision 3 = 60x45 (must match GameHub).
+    if (
+      !Number.isInteger(change.column) ||
+      !Number.isInteger(change.row) ||
+      change.column < 0 ||
+      change.column >= 60 ||
+      change.row < 0 ||
+      change.row >= 45
+    ) {
+      return;
+    }
+
     const request: RealtimeMapTileChange = {
       ...change,
       ...createRealtimeMetadata(),
@@ -331,6 +343,11 @@ export class GameService implements OnDestroy {
       .invoke<RealtimeAck>(methodName, request)
       .then((ack) => this.benchmark.recordAcknowledged(ack.eventId))
       .catch((error: unknown) => {
+        // Gameplay validation errors should not look like a dropped connection.
+        if (methodName === 'DestroyMapTile') {
+          console.warn(`DestroyMapTile rejected: ${readableError(error)}`);
+          return;
+        }
         this.store.dispatch(GameActions.connectionErrorChanged({ message: readableError(error) }));
       });
   }

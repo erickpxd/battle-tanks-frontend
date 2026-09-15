@@ -80,8 +80,8 @@ try {
   ]);
 
   const requests = Array.from({ length: eventCount }, (_, index) => ({
-    column: index % 40,
-    row: Math.floor(index / 40) % 30,
+    column: index % 60,
+    row: Math.floor(index / 60) % 45,
     eventId: `lab06-${Date.now()}-${index}`,
     clientSentAtUnixMs: Date.now(),
   }));
