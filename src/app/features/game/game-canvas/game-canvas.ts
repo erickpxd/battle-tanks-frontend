@@ -13,14 +13,17 @@ import { filter, Subscription } from 'rxjs';
 
 import { MapTileChange } from '../../../core/models/map-tile-change.model';
 import { Player } from '../../../core/models/player.model';
+import { PowerUp, POWER_UP_LABELS, PowerUpType } from '../../../core/models/power-up.model';
 import { PlayerDirection, Position } from '../../../core/models/position.model';
 import { Tank, TankStatus } from '../../../core/models/tank.model';
 import { GameService } from '../../../core/services/game.service';
 import {
   selectLastMapTileChange,
   selectLastPlayerHit,
+  selectLastPowerUpPlayer,
   selectLocalPlayerId,
   selectPlayers,
+  selectPowerUps,
 } from '../../../core/store/game.selectors';
 import { BulletComponent, BulletState } from '../bullet/bullet.component';
 import { ExplosionSignalStore } from '../explosion/explosion.store';
@@ -37,6 +40,8 @@ interface TankMovementAnimation {
 const PROJECTILE_SPEED = 420;
 const PLAYER_HIT_DAMAGE = 25;
 const PROJECTILE_RADIUS = 3;
+const STANDARD_RELOAD_MS = 450;
+const MACHINE_GUN_RELOAD_MS = 150;
 
 const KEY_DIRECTIONS: Readonly<Record<string, PlayerDirection>> = {
   w: 'up',
@@ -73,8 +78,22 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   readonly battleMap = this.mapStore.battleMap;
   readonly gridColumns = this.battleMap.originalColumns;
   readonly gridRows = this.battleMap.originalRows;
-  readonly movementDurationMs = 180;
   readonly tankSize = 32;
+
+  get movementDurationMs(): number {
+    return this.hasActiveEffect('speedBoostExpiresAt') ? 105 : 180;
+  }
+
+  private get isTutorial(): boolean {
+    return window.location.pathname.startsWith('/tutorial');
+  }
+
+  private get currentShotDamage(): number {
+    if (this.hasActiveEffect('machineGunExpiresAt')) {
+      return 15;
+    }
+    return this.hasActiveEffect('doubleDamageExpiresAt') ? 50 : PLAYER_HIT_DAMAGE;
+  }
 
   get localTank(): Tank {
     return this.tankStore.tank();
@@ -87,7 +106,14 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   private frameId?: number;
   private lastFrameTimestamp = performance.now();
   private localTankMovement?: TankMovementAnimation;
-  private projectile?: BulletState;
+  private readonly projectiles: BulletState[] = [];
+  private activePowerUps: readonly PowerUp[] = [];
+  private readonly collectingPowerUpIds = new Set<string>();
+  private localEffectPlayer?: Player;
+  private tutorialPowerUpTimer?: ReturnType<typeof setTimeout>;
+  private tutorialEffectExpirations: Partial<Record<PowerUpType, number>> = {};
+  private fireHeld = false;
+  private lastShotAt = Number.NEGATIVE_INFINITY;
   private readonly renderedLocalTankPosition: Position = { ...this.localTank.position };
   private lastMovementSentAt = Number.NEGATIVE_INFINITY;
   private lastSentPosition: Position = { ...this.localTank.position };
@@ -104,9 +130,8 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     const key = event.key.toLowerCase();
     if (key === ' ' || key === 'spacebar') {
       event.preventDefault();
-      if (!event.repeat) {
-        this.fireLocalShot();
-      }
+      this.fireHeld = true;
+      this.fireLocalShot();
       return;
     }
 
@@ -121,15 +146,27 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.moveLocalTank(direction);
   };
 
+  private readonly handleKeyUp = (event: KeyboardEvent): void => {
+    const key = event.key.toLowerCase();
+    if (key === ' ' || key === 'spacebar') {
+      this.fireHeld = false;
+    }
+  };
+
   private readonly handleWindowResize = (): void => {
     this.resizeCanvas();
   };
 
   private readonly gameLoop = (timestamp: number): void => {
     this.updateLocalTankAnimation(timestamp);
-    this.updateProjectile(timestamp);
+    this.refreshTutorialPowerUps();
+    if (this.fireHeld) {
+      this.fireLocalShot(timestamp);
+    }
+    this.updateProjectiles(timestamp);
     this.updateExplosions(timestamp);
     this.sendMovementWhenNeeded(timestamp);
+    this.collectPowerUpUnderTank();
     this.draw();
     this.frameId = requestAnimationFrame(this.gameLoop);
   };
@@ -159,6 +196,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       }
 
       window.addEventListener('keydown', this.handleKeyDown, { passive: false });
+      window.addEventListener('keyup', this.handleKeyUp);
       this.draw();
       this.frameId = requestAnimationFrame(this.gameLoop);
     });
@@ -180,6 +218,16 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     );
     this.subscriptions.add(
       this.store
+        .select(selectLastPowerUpPlayer)
+        .pipe(filter((player): player is Player => player !== null))
+        .subscribe((player) => {
+          if (this.isLocalPlayer(player) && typeof player.health === 'number') {
+            this.tankStore.setHealth(player.health);
+          }
+        }),
+    );
+    this.subscriptions.add(
+      this.store
         .select(selectLastPlayerHit)
         .pipe(filter((player): player is Player => player !== null))
         .subscribe((player) => {
@@ -187,6 +235,17 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
             this.tankStore.setHealth(player.health);
           }
         }),
+    );
+    this.subscriptions.add(
+      this.store.select(selectPowerUps).subscribe((powerUps) => {
+        this.activePowerUps = powerUps;
+        const activeIds = new Set(powerUps.map((powerUp) => powerUp.id));
+        for (const id of this.collectingPowerUpIds) {
+          if (!activeIds.has(id)) {
+            this.collectingPowerUpIds.delete(id);
+          }
+        }
+      }),
     );
     this.subscriptions.add(
       this.store.select(selectLocalPlayerId).subscribe((playerId) => {
@@ -197,6 +256,10 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         }
       }),
     );
+
+    if (this.isTutorial) {
+      this.scheduleTutorialPowerUp(800);
+    }
   }
 
   ngOnDestroy(): void {
@@ -208,6 +271,10 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       window.removeEventListener('resize', this.handleWindowResize);
     }
     window.removeEventListener('keydown', this.handleKeyDown);
+    window.removeEventListener('keyup', this.handleKeyUp);
+    if (this.tutorialPowerUpTimer !== undefined) {
+      clearTimeout(this.tutorialPowerUpTimer);
+    }
     this.subscriptions.unsubscribe();
     this.explosionStore.clear();
   }
@@ -224,8 +291,11 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     return this.mapStore.destroyTile(expandedX, expandedY);
   }
 
-  fireLocalShot(): boolean {
-    if (this.projectile || !this.tankStore.isActive()) {
+  fireLocalShot(now = performance.now()): boolean {
+    const reload = this.hasActiveEffect('machineGunExpiresAt')
+      ? MACHINE_GUN_RELOAD_MS
+      : STANDARD_RELOAD_MS;
+    if (!this.tankStore.isActive() || now - this.lastShotAt < reload) {
       return false;
     }
 
@@ -234,14 +304,15 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     const direction = this.renderedLocalTankPosition.direction;
     const movement = directionMovement(direction);
     const muzzleDistance = Math.min(cellWidth, cellHeight) * 0.6;
-    this.projectile = {
+    this.projectiles.push({
       x: this.renderedLocalTankPosition.x * cellWidth + cellWidth / 2 + movement.x * muzzleDistance,
       y:
         this.renderedLocalTankPosition.y * cellHeight +
         cellHeight / 2 +
         movement.y * muzzleDistance,
       direction,
-    };
+    });
+    this.lastShotAt = now;
     return true;
   }
 
@@ -289,27 +360,28 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.centerViewportOnLocalTank();
   }
 
-  private updateProjectile(timestamp: number): void {
+  private updateProjectiles(timestamp: number): void {
     const elapsedSeconds = clamp((timestamp - this.lastFrameTimestamp) / 1000, 0, 0.05);
     this.lastFrameTimestamp = timestamp;
-    const projectile = this.projectile;
-    if (!projectile) {
-      return;
-    }
-
-    const movement = directionMovement(projectile.direction);
-    const distance = PROJECTILE_SPEED * elapsedSeconds;
-    const steps = Math.max(1, Math.ceil(distance / 4));
-    for (let step = 0; step < steps; step += 1) {
-      projectile.x += (movement.x * distance) / steps;
-      projectile.y += (movement.y * distance) / steps;
-
-      if (!this.isInsideCanvas(projectile.x, projectile.y)) {
-        this.projectile = undefined;
-        return;
+    for (let index = this.projectiles.length - 1; index >= 0; index -= 1) {
+      const projectile = this.projectiles[index];
+      const movement = directionMovement(projectile.direction);
+      const distance = PROJECTILE_SPEED * elapsedSeconds;
+      const steps = Math.max(1, Math.ceil(distance / 4));
+      let remove = false;
+      for (let step = 0; step < steps; step += 1) {
+        projectile.x += (movement.x * distance) / steps;
+        projectile.y += (movement.y * distance) / steps;
+        if (
+          !this.isInsideCanvas(projectile.x, projectile.y) ||
+          this.resolveProjectileCollision(projectile, timestamp)
+        ) {
+          remove = true;
+          break;
+        }
       }
-      if (this.resolveProjectileCollision(projectile, timestamp)) {
-        return;
+      if (remove) {
+        this.projectiles.splice(index, 1);
       }
     }
   }
@@ -323,8 +395,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         startedAt: timestamp,
         destructive: true,
       });
-      this.projectile = undefined;
-      this.gameService.sendPlayerHit(hitPlayer.id, PLAYER_HIT_DAMAGE);
+      this.gameService.sendPlayerHit(hitPlayer.id, this.currentShotDamage);
       return true;
     }
 
@@ -355,7 +426,6 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       startedAt: timestamp,
       destructive: destroyed.length > 0,
     });
-    this.projectile = undefined;
     for (const change of destroyed) {
       this.gameService.sendMapTileDestroyed(change);
     }
@@ -457,6 +527,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
 
   private replaceRemotePlayers(state: { players: readonly Player[] }): void {
     this.latestPlayers = state.players;
+    this.localEffectPlayer = state.players.find((player) => this.isLocalPlayer(player));
     this.selectLocalSpawnFromPlayers();
     this.remotePlayers.clear();
     for (const player of state.players) {
@@ -509,6 +580,108 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     this.draw();
   }
 
+  private collectPowerUpUnderTank(): void {
+    const position = this.localTank.position;
+    const powerUp = this.activePowerUps.find(
+      (item) =>
+        item.x === position.x && item.y === position.y && !this.collectingPowerUpIds.has(item.id),
+    );
+    if (!powerUp) {
+      return;
+    }
+
+    if (this.isTutorial) {
+      this.activePowerUps = this.activePowerUps.filter((item) => item.id !== powerUp.id);
+      this.applyTutorialPowerUp(powerUp.type);
+      this.scheduleTutorialPowerUp();
+      return;
+    }
+
+    this.collectingPowerUpIds.add(powerUp.id);
+    this.activePowerUps = this.activePowerUps.filter((item) => item.id !== powerUp.id);
+    this.gameService.collectPowerUp(powerUp.id);
+  }
+
+  private scheduleTutorialPowerUp(delay = 4_000 + Math.random() * 4_000): void {
+    if (this.tutorialPowerUpTimer !== undefined) {
+      clearTimeout(this.tutorialPowerUpTimer);
+    }
+    this.tutorialPowerUpTimer = setTimeout(() => {
+      this.tutorialPowerUpTimer = undefined;
+      const points = [
+        { x: 4, y: 3 },
+        { x: 10, y: 2 },
+        { x: 15, y: 3 },
+        { x: 4, y: 7 },
+        { x: 10, y: 7 },
+        { x: 15, y: 7 },
+        { x: 4, y: 11 },
+        { x: 10, y: 12 },
+        { x: 15, y: 11 },
+      ].filter((point) => !this.battleMap.isOriginalCellBlocked(point.x, point.y));
+      const types: PowerUpType[] = [
+        'machine-gun',
+        'double-damage',
+        'shield',
+        'speed-boost',
+        'repair-kit',
+      ];
+      if (points.length > 0) {
+        const point = points[Math.floor(Math.random() * points.length)];
+        this.activePowerUps = [
+          {
+            id: `tutorial-${Date.now()}`,
+            type: types[Math.floor(Math.random() * types.length)],
+            ...point,
+            expiresAt: new Date(Date.now() + 15_000).toISOString(),
+          },
+        ];
+      }
+    }, delay);
+  }
+
+  private refreshTutorialPowerUps(): void {
+    if (!this.isTutorial || this.tutorialPowerUpTimer !== undefined) {
+      return;
+    }
+    if (this.activePowerUps.some((powerUp) => Date.parse(powerUp.expiresAt) > Date.now())) {
+      return;
+    }
+    this.activePowerUps = [];
+    this.scheduleTutorialPowerUp();
+  }
+
+  private applyTutorialPowerUp(type: PowerUpType): void {
+    if (type === 'repair-kit') {
+      this.tankStore.setHealth(this.localTank.health + 30);
+      return;
+    }
+    const durations: Partial<Record<PowerUpType, number>> = {
+      'machine-gun': 8_000,
+      'double-damage': 6_000,
+      shield: 8_000,
+      'speed-boost': 7_000,
+    };
+    this.tutorialEffectExpirations[type] = Date.now() + (durations[type] ?? 0);
+  }
+
+  private hasActiveEffect(
+    field:
+      'shieldExpiresAt' | 'speedBoostExpiresAt' | 'doubleDamageExpiresAt' | 'machineGunExpiresAt',
+  ): boolean {
+    const tutorialTypes: Record<typeof field, PowerUpType> = {
+      shieldExpiresAt: 'shield',
+      speedBoostExpiresAt: 'speed-boost',
+      doubleDamageExpiresAt: 'double-damage',
+      machineGunExpiresAt: 'machine-gun',
+    };
+    if (this.isTutorial) {
+      return (this.tutorialEffectExpirations[tutorialTypes[field]] ?? 0) > Date.now();
+    }
+    const expiration = this.localEffectPlayer?.[field];
+    return typeof expiration === 'string' && Date.parse(expiration) > Date.now();
+  }
+
   private draw(): void {
     if (!this.context) {
       return;
@@ -520,6 +693,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     context.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
     this.drawExpandedMap(context);
     this.drawGrid(context);
+    this.drawPowerUps(context);
 
     this.drawTank(
       context,
@@ -529,6 +703,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       tankColor(this.localTank),
       undefined,
       this.localTank.status,
+      this.hasActiveEffect('shieldExpiresAt'),
     );
     for (const player of this.remotePlayers.values()) {
       this.drawTank(
@@ -539,10 +714,12 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         remoteTankColor(player),
         player.name,
         player.status ?? 'active',
+        (player.shieldHealth ?? 0) > 0 && isFutureDate(player.shieldExpiresAt),
       );
     }
-    this.drawProjectile(context);
+    this.drawProjectiles(context);
     this.drawExplosions(context);
+    this.drawEffectHud(context);
   }
 
   private drawGrid(context: CanvasRenderingContext2D): void {
@@ -561,6 +738,61 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       context.lineTo(this.logicalWidth, y);
     }
     context.stroke();
+  }
+
+  private drawPowerUps(context: CanvasRenderingContext2D): void {
+    const cellWidth = this.logicalWidth / this.gridColumns;
+    const cellHeight = this.logicalHeight / this.gridRows;
+    const colors: Record<PowerUpType, string> = {
+      'machine-gun': '#ff8b3d',
+      'double-damage': '#ef4444',
+      shield: '#48a9ff',
+      'speed-boost': '#f4e04d',
+      'repair-kit': '#55d66b',
+    };
+    const symbols: Record<PowerUpType, string> = {
+      'machine-gun': 'M',
+      'double-damage': '2×',
+      shield: 'S',
+      'speed-boost': 'V',
+      'repair-kit': '+',
+    };
+    for (const powerUp of this.activePowerUps) {
+      if (Date.parse(powerUp.expiresAt) <= Date.now()) {
+        continue;
+      }
+      const centerX = powerUp.x * cellWidth + cellWidth / 2;
+      const centerY = powerUp.y * cellHeight + cellHeight / 2;
+      context.beginPath();
+      context.arc(centerX, centerY, 13, 0, Math.PI * 2);
+      context.fillStyle = colors[powerUp.type];
+      context.fill();
+      context.fillStyle = '#11150f';
+      context.font = 'bold 12px system-ui, sans-serif';
+      context.textAlign = 'center';
+      context.fillText(symbols[powerUp.type], centerX, centerY + 4);
+      context.fillStyle = '#e8eadf';
+      context.font = '9px system-ui, sans-serif';
+      context.fillText(POWER_UP_LABELS[powerUp.type], centerX, centerY + 25);
+    }
+  }
+
+  private drawEffectHud(context: CanvasRenderingContext2D): void {
+    const effects = [
+      { field: 'machineGunExpiresAt' as const, label: 'Metralhadora' },
+      { field: 'doubleDamageExpiresAt' as const, label: 'Dano 2×' },
+      { field: 'shieldExpiresAt' as const, label: 'Escudo' },
+      { field: 'speedBoostExpiresAt' as const, label: 'Velocidade' },
+    ].filter((effect) => this.hasActiveEffect(effect.field));
+    if (effects.length === 0) {
+      return;
+    }
+    context.fillStyle = 'rgba(10, 14, 9, 0.82)';
+    context.fillRect(8, 8, 150, 12 + effects.length * 18);
+    context.fillStyle = '#f4e04d';
+    context.font = 'bold 11px system-ui, sans-serif';
+    context.textAlign = 'left';
+    effects.forEach((effect, index) => context.fillText(effect.label, 16, 27 + index * 18));
   }
 
   private drawExpandedMap(context: CanvasRenderingContext2D): void {
@@ -613,12 +845,10 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     }
   }
 
-  private drawProjectile(context: CanvasRenderingContext2D): void {
-    if (!this.projectile) {
-      return;
+  private drawProjectiles(context: CanvasRenderingContext2D): void {
+    for (const projectile of this.projectiles) {
+      this.bulletRenderer.draw(context, projectile);
     }
-
-    this.bulletRenderer.draw(context, this.projectile);
   }
 
   private drawExplosions(context: CanvasRenderingContext2D): void {
@@ -640,6 +870,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     color: string,
     name?: string,
     status: TankStatus = 'active',
+    shielded = false,
   ): void {
     if (!this.isInsideDrawableGrid(position.x, position.y)) {
       return;
@@ -659,6 +890,13 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
 
     context.save();
     context.translate(centerX, centerY);
+    if (shielded && status === 'active') {
+      context.beginPath();
+      context.arc(0, 0, Math.max(width, height) / 2 + 7, 0, Math.PI * 2);
+      context.strokeStyle = '#48a9ff';
+      context.lineWidth = 3;
+      context.stroke();
+    }
     context.rotate(directionAngle(position.direction));
     context.fillStyle = status === 'destroyed' ? '#171915' : '#20261e';
     context.fillRect(-width / 2 - 3, -height / 2, 6, height);
@@ -789,4 +1027,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
     target instanceof HTMLTextAreaElement ||
     (target instanceof HTMLElement && target.isContentEditable)
   );
+}
+
+function isFutureDate(value: string | null | undefined): boolean {
+  return typeof value === 'string' && Date.parse(value) > Date.now();
 }

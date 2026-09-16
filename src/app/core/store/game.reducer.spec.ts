@@ -101,4 +101,20 @@ describe('gameReducer', () => {
 
     expect(state.gameEnded).toEqual(gameEvent);
   });
+
+  it('should replace the synchronized power-ups', () => {
+    const powerUps = [
+      {
+        id: 'power-up-1',
+        type: 'shield' as const,
+        x: 10,
+        y: 7,
+        expiresAt: new Date().toISOString(),
+      },
+    ];
+
+    const state = gameReducer(initialRealtimeGameState, GameActions.powerUpsUpdated({ powerUps }));
+
+    expect(state.powerUps).toEqual(powerUps);
+  });
 });

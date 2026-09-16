@@ -15,10 +15,12 @@ import { GameState } from '../models/game-state.model';
 import { MapTileChange } from '../models/map-tile-change.model';
 import { GameEventEnvelope } from '../models/mqtt-game-event.model';
 import { Player } from '../models/player.model';
+import { PowerUp } from '../models/power-up.model';
 import { Position } from '../models/position.model';
 import {
   PlayerMoveRequest,
   PlayerHitRequest,
+  CollectPowerUpRequest,
   RealtimeAck,
   RealtimeChatRequest,
   RealtimeMapTileChange,
@@ -168,6 +170,14 @@ export class GameService implements OnDestroy {
     this.invokeWithBenchmark('HitPlayer', request);
   }
 
+  collectPowerUp(powerUpId: string): void {
+    if (!powerUpId) {
+      return;
+    }
+    const request: CollectPowerUpRequest = { powerUpId, ...createRealtimeMetadata() };
+    this.invokeWithBenchmark('CollectPowerUp', request);
+  }
+
   sendChatMessage(message: string): void {
     const normalizedMessage = message.trim().slice(0, 250);
     if (!normalizedMessage) {
@@ -263,6 +273,12 @@ export class GameService implements OnDestroy {
       );
       this.store.dispatch(GameActions.playerHit({ player }));
     });
+    connection.on('ReceivePowerUpsUpdated', (powerUps: PowerUp[]) => {
+      this.store.dispatch(GameActions.powerUpsUpdated({ powerUps }));
+    });
+    connection.on('ReceivePlayerPowerUp', (player: Player) => {
+      this.store.dispatch(GameActions.playerPowerUpChanged({ player }));
+    });
     connection.on('ReceiveChatHistory', (messages: ChatMessage[]) => {
       this.store.dispatch(GameActions.chatHistoryReceived({ messages }));
     });
@@ -331,8 +347,14 @@ export class GameService implements OnDestroy {
   }
 
   private invokeWithBenchmark(
-    methodName: 'MovePlayer' | 'HitPlayer' | 'SendChatMessage' | 'DestroyMapTile',
-    request: PlayerMoveRequest | PlayerHitRequest | RealtimeChatRequest | RealtimeMapTileChange,
+    methodName:
+      'MovePlayer' | 'HitPlayer' | 'SendChatMessage' | 'DestroyMapTile' | 'CollectPowerUp',
+    request:
+      | PlayerMoveRequest
+      | PlayerHitRequest
+      | RealtimeChatRequest
+      | RealtimeMapTileChange
+      | CollectPowerUpRequest,
   ): void {
     if (this.connection?.state !== HubConnectionState.Connected || !this.joinedRoomCode) {
       return;
@@ -344,7 +366,7 @@ export class GameService implements OnDestroy {
       .then((ack) => this.benchmark.recordAcknowledged(ack.eventId))
       .catch((error: unknown) => {
         // Gameplay validation errors should not look like a dropped connection.
-        if (methodName === 'DestroyMapTile') {
+        if (methodName === 'DestroyMapTile' || methodName === 'CollectPowerUp') {
           console.warn(`DestroyMapTile rejected: ${readableError(error)}`);
           return;
         }
