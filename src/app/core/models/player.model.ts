@@ -8,6 +8,11 @@ export interface Player {
   health?: number;
   maxHealth?: number;
   status?: TankStatus;
+  shieldHealth?: number;
+  shieldExpiresAt?: string | null;
+  speedBoostExpiresAt?: string | null;
+  doubleDamageExpiresAt?: string | null;
+  machineGunExpiresAt?: string | null;
   eventId?: string;
   clientSentAtUnixMs?: number;
   serverReceivedAt?: string;

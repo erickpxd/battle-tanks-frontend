@@ -19,6 +19,10 @@ export interface PlayerHitRequest extends RealtimeMetadata {
   damage: number;
 }
 
+export interface CollectPowerUpRequest extends RealtimeMetadata {
+  powerUpId: string;
+}
+
 export interface RealtimeAck extends RealtimeMetadata {
   serverReceivedAt: string;
 }

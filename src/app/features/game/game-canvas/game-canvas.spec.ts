@@ -20,6 +20,7 @@ describe('GameCanvas', () => {
     sendPlayerMove: vi.fn(),
     sendPlayerHit: vi.fn(),
     sendMapTileDestroyed: vi.fn(),
+    collectPowerUp: vi.fn(),
   };
 
   const context = {
@@ -297,6 +298,95 @@ describe('GameCanvas', () => {
     );
 
     expect(component.localTank.health).toBe(75);
+  });
+
+  it('should collect a power-up after entering its cell', () => {
+    const { x, y } = component.localTank.position;
+    store.dispatch(
+      GameActions.powerUpsUpdated({
+        powerUps: [
+          {
+            id: 'power-up-1',
+            type: 'repair-kit',
+            x: x + 1,
+            y,
+            expiresAt: new Date(Date.now() + 10_000).toISOString(),
+          },
+        ],
+      }),
+    );
+
+    prepareAnimationClock();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    finishMovement();
+
+    expect(gameService.collectPowerUp).toHaveBeenCalledWith('power-up-1');
+  });
+
+  it('should fire a 50 damage projectile while double damage is active', () => {
+    const { x, y } = component.localTank.position;
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'local-player',
+            name: 'Erick',
+            position: { x, y, direction: 'right' },
+            doubleDamageExpiresAt: new Date(Date.now() + 10_000).toISOString(),
+          },
+          {
+            id: 'remote-player',
+            name: 'Ana',
+            position: { x: x + 1, y, direction: 'left' },
+          },
+        ],
+      }),
+    );
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    runNextFrame();
+
+    expect(gameService.sendPlayerHit).toHaveBeenCalledWith('remote-player', 50);
+  });
+
+  it('should reduce movement duration while speed boost is active', () => {
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'local-player',
+            name: 'Erick',
+            position: { x: 1, y: 1, direction: 'right' },
+            speedBoostExpiresAt: new Date(Date.now() + 10_000).toISOString(),
+          },
+        ],
+      }),
+    );
+
+    expect(component.movementDurationMs).toBe(105);
+  });
+
+  it('should use a shorter reload while machine gun is active', () => {
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'local-player',
+            name: 'Erick',
+            position: { x: 1, y: 1, direction: 'right' },
+            machineGunExpiresAt: new Date(Date.now() + 10_000).toISOString(),
+          },
+        ],
+      }),
+    );
+
+    expect(component.fireLocalShot(1_000)).toBe(true);
+    expect(component.fireLocalShot(1_149)).toBe(false);
+    expect(component.fireLocalShot(1_150)).toBe(true);
   });
 
   it('should destroy a horizontal strip when a vertical shot hits a wall', () => {

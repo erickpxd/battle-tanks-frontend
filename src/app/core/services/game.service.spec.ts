@@ -127,6 +127,7 @@ describe('GameService', () => {
 
     service.sendPlayerMove({ x: 8, y: 6, direction: 'right' });
     service.sendPlayerHit('target-player', 25);
+    service.collectPowerUp('power-up-1');
     service.sendChatMessage('  Olá, tanque!  ');
 
     expect(
@@ -138,6 +139,9 @@ describe('GameService', () => {
     expect(
       connection.invocations.find(({ methodName }) => methodName === 'SendChatMessage')?.args[0],
     ).toEqual(expect.objectContaining({ message: 'Olá, tanque!' }));
+    expect(
+      connection.invocations.find(({ methodName }) => methodName === 'CollectPowerUp')?.args[0],
+    ).toEqual(expect.objectContaining({ powerUpId: 'power-up-1' }));
   });
 
   it('should expose received movements only after the SignalR handler dispatches them', () => {

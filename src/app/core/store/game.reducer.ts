@@ -9,6 +9,7 @@ import {
   MqttConnectionStatus,
 } from '../models/mqtt-game-event.model';
 import { Player } from '../models/player.model';
+import { PowerUp } from '../models/power-up.model';
 import { GameActions } from './game.actions';
 
 export const gameFeatureKey = 'game';
@@ -21,6 +22,8 @@ export interface RealtimeGameState {
   readonly chatMessages: readonly ChatMessage[];
   readonly lastPlayerMove: Player | null;
   readonly lastPlayerHit: Player | null;
+  readonly powerUps: readonly PowerUp[];
+  readonly lastPowerUpPlayer: Player | null;
   readonly lastChatMessage: ChatMessage | null;
   readonly lastMapTileChange: MapTileChange | null;
   readonly mqttConnectionStatus: MqttConnectionStatus;
@@ -38,6 +41,8 @@ export const initialRealtimeGameState: RealtimeGameState = {
   chatMessages: [],
   lastPlayerMove: null,
   lastPlayerHit: null,
+  powerUps: [],
+  lastPowerUpPlayer: null,
   lastChatMessage: null,
   lastMapTileChange: null,
   mqttConnectionStatus: 'disconnected',
@@ -75,6 +80,15 @@ export const gameReducer = createReducer(
     players: upsertPlayer(state.players, player),
     lastPlayerHit: player,
   })),
+  on(GameActions.playerPowerUpChanged, (state, { player }) => ({
+    ...state,
+    players: upsertPlayer(state.players, player),
+    lastPowerUpPlayer: player,
+  })),
+  on(GameActions.powerUpsUpdated, (state, { powerUps }) => ({
+    ...state,
+    powerUps: [...powerUps],
+  })),
   on(GameActions.localPlayerMoved, (state, { position }) => {
     if (!state.localPlayerId) {
       return state;
@@ -110,16 +124,11 @@ export const gameReducer = createReducer(
   on(GameActions.gameEventHistoryReceived, (state, { gameEvents }) =>
     gameEvents.reduce(applyGameEvent, state),
   ),
-  on(GameActions.mqttGameEventReceived, (state, { gameEvent }) =>
-    applyGameEvent(state, gameEvent),
-  ),
+  on(GameActions.mqttGameEventReceived, (state, { gameEvent }) => applyGameEvent(state, gameEvent)),
   on(GameActions.realtimeStateReset, () => initialRealtimeGameState),
 );
 
-function applyGameEvent(
-  state: RealtimeGameState,
-  gameEvent: GameEventEnvelope,
-): RealtimeGameState {
+function applyGameEvent(state: RealtimeGameState, gameEvent: GameEventEnvelope): RealtimeGameState {
   if (state.processedGameEventIds.includes(gameEvent.eventId)) {
     return state;
   }

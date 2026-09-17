@@ -29,6 +29,11 @@ export const selectLastPlayerHit = createSelector(
   selectRealtimeGameState,
   (state) => state.lastPlayerHit,
 );
+export const selectPowerUps = createSelector(selectRealtimeGameState, (state) => state.powerUps);
+export const selectLastPowerUpPlayer = createSelector(
+  selectRealtimeGameState,
+  (state) => state.lastPowerUpPlayer,
+);
 export const selectLastChatMessage = createSelector(
   selectRealtimeGameState,
   (state) => state.lastChatMessage,
@@ -49,7 +54,4 @@ export const selectLastGameEvent = createSelector(
   selectRealtimeGameState,
   (state) => state.lastGameEvent,
 );
-export const selectGameEnded = createSelector(
-  selectRealtimeGameState,
-  (state) => state.gameEnded,
-);
+export const selectGameEnded = createSelector(selectRealtimeGameState, (state) => state.gameEnded);
