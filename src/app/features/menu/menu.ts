@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { GAME_CONFIG } from '../../core/config/game.config';
 import { AuthService } from '../../core/services/auth.service';
 import { RoomApiService } from '../../core/services/room-api.service';
+import { getMapDefinition, MAP_CATALOG, MapId } from '../game/map/map-catalog';
 
 @Component({
   selector: 'app-menu',
@@ -20,6 +21,8 @@ export class Menu implements OnInit {
   roomCodeError = '';
   isLoading = false;
   apiError = '';
+  readonly maps = MAP_CATALOG;
+  selectedMap: MapId = 'battleground';
 
   constructor(
     private readonly authService: AuthService,
@@ -29,9 +32,14 @@ export class Menu implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    const savedName = this.authService.getUsername() || sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey);
+    const savedName =
+      this.authService.getUsername() || sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey);
     this.playerName = savedName ?? '';
     this.roomCode = sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey) ?? '';
+    const savedMap = sessionStorage.getItem(GAME_CONFIG.mapStorageKey) as MapId | null;
+    if (this.maps.some((map) => map.id === savedMap)) {
+      this.selectedMap = savedMap!;
+    }
   }
 
   get isAuthenticated(): boolean {
@@ -62,11 +70,11 @@ export class Menu implements OnInit {
     }
 
     this.isLoading = true;
-    this.roomApiService.createRoom('default').subscribe({
+    this.roomApiService.createRoom(this.selectedMap).subscribe({
       next: (room) => {
         this.isLoading = false;
         this.cdr.detectChanges();
-        this.openWaitingRoom(name, room.roomCode);
+        this.openWaitingRoom(name, room.roomCode, room.mapSelected);
       },
       error: (err: Error) => {
         this.isLoading = false;
@@ -98,7 +106,7 @@ export class Menu implements OnInit {
         console.log('Join request successful', room);
         this.isLoading = false;
         this.cdr.detectChanges();
-        this.openWaitingRoom(name, room.roomCode);
+        this.openWaitingRoom(name, room.roomCode, room.mapSelected);
       },
       error: (err: Error) => {
         console.log('Join request error', err);
@@ -119,11 +127,12 @@ export class Menu implements OnInit {
     this.apiError = '';
   }
 
-  private openWaitingRoom(name: string, roomCode: string): void {
+  private openWaitingRoom(name: string, roomCode: string, mapSelected: string): void {
     this.playerName = name;
     this.roomCode = roomCode;
     sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, name);
     sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, roomCode);
+    sessionStorage.setItem(GAME_CONFIG.mapStorageKey, getMapDefinition(mapSelected).id);
     void this.router.navigate(['/waiting-room']);
   }
 }

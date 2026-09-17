@@ -7,16 +7,14 @@
       <p>
         Sala: <strong>{{ savedRoomCode }}</strong> · Comandante:
         <strong>{{ savedPlayerName }}</strong>
+        · Mapa: <strong>{{ selectedMap }}</strong>
       </p>
       <div class="connection-list" aria-label="Conexões em tempo real">
         <div class="connection" [class]="'connection connection--' + connectionStatus">
           <span aria-hidden="true"></span>
           SignalR: {{ connectionLabel() }}
         </div>
-        <div
-          class="connection"
-          [class]="'connection connection--' + mqttConnectionStatus"
-        >
+        <div class="connection" [class]="'connection connection--' + mqttConnectionStatus">
           <span aria-hidden="true"></span>
           {{ mqttConnectionLabel() }}
         </div>
@@ -78,7 +76,9 @@
           <ul class="api-rooms-list">
             @for (room of availableRooms; track room.id) {
               <li [class.active-room]="room.roomCode === savedRoomCode">
-                <span>Código: <strong>{{ room.roomCode }}</strong></span>
+                <span
+                  >Código: <strong>{{ room.roomCode }}</strong></span
+                >
                 <span>Mapa: {{ room.mapSelected }}</span>
                 <span>({{ room.playerCount }}/4)</span>
               </li>

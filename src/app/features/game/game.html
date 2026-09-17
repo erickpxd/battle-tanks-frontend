@@ -5,7 +5,8 @@
     </h1>
     <div class="match-bar">
       <p>
-        {{ isTutorial ? 'Modo:' : 'Comandante:' }} <strong>{{ playerName }}</strong>
+        {{ isTutorial ? 'Modo:' : 'Comandante:' }} <strong>{{ playerName }}</strong> · Mapa:
+        <strong>{{ mapName }}</strong>
       </p>
       <div class="header-actions">
         @if (!isTutorial) {

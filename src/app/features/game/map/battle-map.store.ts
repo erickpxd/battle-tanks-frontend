@@ -1,15 +1,17 @@
 import { computed, Injectable, signal } from '@angular/core';
 
 import { MapTileChange } from '../../../core/models/map-tile-change.model';
-import defaultMapSource from './default-map.json';
 import { BattleMap } from './battle-map';
+import { getSelectedMapDefinition } from './map-catalog';
 import { TerrainType } from './terrain-type';
 
 @Injectable({
   providedIn: 'root',
 })
 export class BattleMapSignalStore {
-  readonly battleMap = new BattleMap(defaultMapSource.tiles);
+  readonly definition = getSelectedMapDefinition();
+  readonly battleMap = new BattleMap(this.definition.source.tiles);
+  readonly theme = this.definition.theme;
 
   private readonly revision = signal(0);
 
