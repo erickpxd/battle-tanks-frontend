@@ -9,6 +9,14 @@
         <strong>{{ mapName }}</strong>
       </p>
       <div class="header-actions">
+        <button
+          type="button"
+          class="sound-toggle"
+          [attr.aria-pressed]="soundEnabled()"
+          (click)="toggleSound()"
+        >
+          Som: {{ soundEnabled() ? 'ligado' : 'desligado' }}
+        </button>
         @if (!isTutorial) {
           <span class="status" [class.status--connected]="connectionStatus === 'connected'">
             {{ connectionLabel() }}

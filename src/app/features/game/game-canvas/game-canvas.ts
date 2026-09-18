@@ -17,6 +17,7 @@ import { PowerUp, POWER_UP_LABELS, PowerUpType } from '../../../core/models/powe
 import { PlayerDirection, Position } from '../../../core/models/position.model';
 import { Tank, TankStatus } from '../../../core/models/tank.model';
 import { GameService } from '../../../core/services/game.service';
+import { SoundEffectsService } from '../../../core/services/sound-effects.service';
 import {
   selectLastMapTileChange,
   selectLastPlayerHit,
@@ -122,11 +123,14 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   private latestPlayers: readonly Player[] = [];
   private localSpawnAssigned = false;
   private usingWindowResize = false;
+  private lastRemoteMapSoundAt = Number.NEGATIVE_INFINITY;
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (isTypingTarget(event.target)) {
       return;
     }
+
+    this.soundEffects.unlock();
 
     const key = event.key.toLowerCase();
     if (key === ' ' || key === 'spacebar') {
@@ -174,6 +178,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
 
   constructor(
     private readonly gameService: GameService,
+    private readonly soundEffects: SoundEffectsService,
     private readonly store: Store,
     private readonly zone: NgZone,
   ) {}
@@ -214,6 +219,11 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         .subscribe((change) => {
           if (this.mapStore.destroyTile(change.column, change.row)) {
             this.addExplosionAtTile(change.column, change.row, true);
+            const now = performance.now();
+            if (now - this.lastRemoteMapSoundAt > 80) {
+              this.soundEffects.playImpact(true);
+              this.lastRemoteMapSoundAt = now;
+            }
           }
         }),
     );
@@ -224,6 +234,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         .subscribe((player) => {
           if (this.isLocalPlayer(player) && typeof player.health === 'number') {
             this.tankStore.setHealth(player.health);
+            this.soundEffects.playPlayerHit(player.status === 'destroyed');
           }
         }),
     );
@@ -314,6 +325,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       direction,
     });
     this.lastShotAt = now;
+    this.soundEffects.playShot(this.hasActiveEffect('machineGunExpiresAt'));
     return true;
   }
 
@@ -331,6 +343,8 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     if (!this.canOccupyCell(nextX, nextY)) {
       return;
     }
+
+    this.soundEffects.playMove();
 
     this.localTankMovement = {
       from: { x: this.localTank.position.x, y: this.localTank.position.y },
@@ -397,6 +411,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         destructive: true,
       });
       this.gameService.sendPlayerHit(hitPlayer.id, this.currentShotDamage);
+      this.soundEffects.playImpact(true);
       return true;
     }
 
@@ -427,6 +442,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       startedAt: timestamp,
       destructive: destroyed.length > 0,
     });
+    this.soundEffects.playImpact(destroyed.length > 0);
     for (const change of destroyed) {
       this.gameService.sendMapTileDestroyed(change);
     }
@@ -594,12 +610,14 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     if (this.isTutorial) {
       this.activePowerUps = this.activePowerUps.filter((item) => item.id !== powerUp.id);
       this.applyTutorialPowerUp(powerUp.type);
+      this.soundEffects.playPowerUp(powerUp.type);
       this.scheduleTutorialPowerUp();
       return;
     }
 
     this.collectingPowerUpIds.add(powerUp.id);
     this.activePowerUps = this.activePowerUps.filter((item) => item.id !== powerUp.id);
+    this.soundEffects.playPowerUp(powerUp.type);
     this.gameService.collectPowerUp(powerUp.id);
   }
 

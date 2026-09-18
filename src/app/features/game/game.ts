@@ -11,6 +11,7 @@ import { Subscription } from 'rxjs';
 
 import { GAME_CONFIG } from '../../core/config/game.config';
 import { ConnectionStatus, GameService } from '../../core/services/game.service';
+import { SoundEffectsService } from '../../core/services/sound-effects.service';
 import {
   GameEndedEventData,
   GameEventEnvelope,
@@ -41,15 +42,19 @@ export class Game implements OnInit, OnDestroy {
   gameEndedMessage = '';
   isTutorial = false;
   mapName = '';
+  readonly soundEnabled;
 
   private readonly subscriptions = new Subscription();
 
   constructor(
     private readonly gameService: GameService,
+    private readonly soundEffects: SoundEffectsService,
     private readonly router: Router,
     private readonly store: Store,
     private readonly changeDetectorRef: ChangeDetectorRef,
-  ) {}
+  ) {
+    this.soundEnabled = this.soundEffects.enabled;
+  }
 
   ngOnInit(): void {
     this.isTutorial = this.router.url.startsWith('/tutorial');
@@ -91,6 +96,9 @@ export class Game implements OnInit, OnDestroy {
         this.gameEndedMessage = data
           ? `Partida encerrada. Vencedor: ${data.winnerPlayerId ?? 'não definido'}.`
           : '';
+        if (gameEvent) {
+          this.soundEffects.playGameOver();
+        }
         this.changeDetectorRef.markForCheck();
       }),
     );
@@ -103,6 +111,10 @@ export class Game implements OnInit, OnDestroy {
   backToWaitingRoom(): void {
     this.store.dispatch(GameActions.connectionErrorChanged({ message: null }));
     void this.router.navigate([this.isTutorial ? '/menu' : '/waiting-room']);
+  }
+
+  toggleSound(): void {
+    this.soundEffects.toggle();
   }
 
   connectionLabel(): string {

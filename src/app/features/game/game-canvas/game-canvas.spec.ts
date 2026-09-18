@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Store, provideStore } from '@ngrx/store';
 
 import { GameService } from '../../../core/services/game.service';
+import { SoundEffectsService } from '../../../core/services/sound-effects.service';
 import { GameActions } from '../../../core/store/game.actions';
 import { gameFeatureKey, gameReducer } from '../../../core/store/game.reducer';
 import { TerrainType } from '../map/terrain-type';
@@ -21,6 +22,15 @@ describe('GameCanvas', () => {
     sendPlayerHit: vi.fn(),
     sendMapTileDestroyed: vi.fn(),
     collectPowerUp: vi.fn(),
+  };
+
+  const soundEffects = {
+    unlock: vi.fn(),
+    playMove: vi.fn(),
+    playShot: vi.fn(),
+    playImpact: vi.fn(),
+    playPlayerHit: vi.fn(),
+    playPowerUp: vi.fn(),
   };
 
   const context = {
@@ -79,6 +89,7 @@ describe('GameCanvas', () => {
       providers: [
         provideStore({ [gameFeatureKey]: gameReducer }),
         { provide: GameService, useValue: gameService },
+        { provide: SoundEffectsService, useValue: soundEffects },
       ],
     }).compileComponents();
 
@@ -122,6 +133,7 @@ describe('GameCanvas', () => {
 
     expect(component.localTank.position.x).toBe(initialX + 1);
     expect(component.localTank.position.y).toBe(initialY);
+    expect(soundEffects.playMove).toHaveBeenCalledOnce();
   });
 
   it('should keep the local tank inside the 20 by 15 grid', () => {
@@ -264,6 +276,8 @@ describe('GameCanvas', () => {
     runNextFrame();
 
     expect(gameService.sendPlayerHit).toHaveBeenCalledWith('remote-player', 25);
+    expect(soundEffects.playShot).toHaveBeenCalledWith(false);
+    expect(soundEffects.playImpact).toHaveBeenCalledWith(true);
     expect(component.explosionStore.explosions()).toHaveLength(1);
   });
 
@@ -321,6 +335,7 @@ describe('GameCanvas', () => {
     finishMovement();
 
     expect(gameService.collectPowerUp).toHaveBeenCalledWith('power-up-1');
+    expect(soundEffects.playPowerUp).toHaveBeenCalledWith('repair-kit');
   });
 
   it('should fire a 50 damage projectile while double damage is active', () => {
