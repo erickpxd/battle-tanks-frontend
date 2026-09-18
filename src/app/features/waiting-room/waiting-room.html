@@ -46,7 +46,10 @@
       } @else {
         <ul class="player-list">
           @for (player of players; track player.id) {
-            <li><span aria-hidden="true">◆</span>{{ player.name }}</li>
+            <li>
+              <span aria-hidden="true">◆</span>{{ player.name }}
+              <strong>{{ player.ready ? 'Pronto' : 'Aguardando' }}</strong>
+            </li>
           }
         </ul>
       }
@@ -56,35 +59,13 @@
           type="button"
           class="button game-button"
           [disabled]="connectionStatus !== 'connected'"
-          (click)="openGame()"
+          (click)="toggleReady()"
         >
-          Abrir campo de batalha
+          {{ isLocalPlayerReady() ? 'Cancelar pronto' : 'Estou pronto' }}
         </button>
         <button type="button" class="button button--secondary" (click)="leaveRoom()">
           Sair da sala
         </button>
-      </div>
-
-      <div class="api-rooms-section">
-        <div class="api-rooms-header">
-          <h3>Salas Ativas (API REST)</h3>
-          <span class="automatic-update">Atualização automática</span>
-        </div>
-        @if (availableRooms.length === 0) {
-          <p class="empty-state">Nenhuma outra sala disponível no momento.</p>
-        } @else {
-          <ul class="api-rooms-list">
-            @for (room of availableRooms; track room.id) {
-              <li [class.active-room]="room.roomCode === savedRoomCode">
-                <span
-                  >Código: <strong>{{ room.roomCode }}</strong></span
-                >
-                <span>Mapa: {{ room.mapSelected }}</span>
-                <span>({{ room.playerCount }}/4)</span>
-              </li>
-            }
-          </ul>
-        }
       </div>
     </section>
 

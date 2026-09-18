@@ -15,13 +15,16 @@ import { MapTileChange } from '../../../core/models/map-tile-change.model';
 import { Player } from '../../../core/models/player.model';
 import { PowerUp, POWER_UP_LABELS, PowerUpType } from '../../../core/models/power-up.model';
 import { PlayerDirection, Position } from '../../../core/models/position.model';
+import { RealtimeShot } from '../../../core/models/realtime-event.model';
 import { Tank, TankStatus } from '../../../core/models/tank.model';
 import { GameService } from '../../../core/services/game.service';
 import { SoundEffectsService } from '../../../core/services/sound-effects.service';
 import {
   selectLastMapTileChange,
   selectLastPlayerHit,
+  selectLastPlayerShot,
   selectLastPowerUpPlayer,
+  selectGameEnded,
   selectLocalPlayerId,
   selectPlayers,
   selectPowerUps,
@@ -37,6 +40,10 @@ interface TankMovementAnimation {
   from: Readonly<{ x: number; y: number }>;
   to: Readonly<{ x: number; y: number }>;
   startedAt: number;
+}
+
+interface TrackedProjectile extends BulletState {
+  readonly local: boolean;
 }
 
 const PROJECTILE_SPEED = 420;
@@ -108,7 +115,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   private frameId?: number;
   private lastFrameTimestamp = performance.now();
   private localTankMovement?: TankMovementAnimation;
-  private readonly projectiles: BulletState[] = [];
+  private readonly projectiles: TrackedProjectile[] = [];
   private activePowerUps: readonly PowerUp[] = [];
   private readonly collectingPowerUpIds = new Set<string>();
   private localEffectPlayer?: Player;
@@ -124,9 +131,10 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   private localSpawnAssigned = false;
   private usingWindowResize = false;
   private lastRemoteMapSoundAt = Number.NEGATIVE_INFINITY;
+  private matchEnded = false;
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (isTypingTarget(event.target)) {
+    if (isTypingTarget(event.target) || this.matchEnded) {
       return;
     }
 
@@ -234,7 +242,6 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         .subscribe((player) => {
           if (this.isLocalPlayer(player) && typeof player.health === 'number') {
             this.tankStore.setHealth(player.health);
-            this.soundEffects.playPlayerHit(player.status === 'destroyed');
           }
         }),
     );
@@ -245,6 +252,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         .subscribe((player) => {
           if (this.isLocalPlayer(player) && typeof player.health === 'number') {
             this.tankStore.setHealth(player.health);
+            this.soundEffects.playPlayerHit(player.status === 'destroyed');
           }
         }),
     );
@@ -265,6 +273,20 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         if (playerId) {
           this.remotePlayers.delete(playerId);
           this.selectLocalSpawnFromPlayers();
+        }
+      }),
+    );
+    this.subscriptions.add(
+      this.store
+        .select(selectLastPlayerShot)
+        .pipe(filter((shot): shot is RealtimeShot => shot !== null))
+        .subscribe((shot) => this.addRemoteShot(shot)),
+    );
+    this.subscriptions.add(
+      this.store.select(selectGameEnded).subscribe((gameEnded) => {
+        this.matchEnded = gameEnded !== null;
+        if (this.matchEnded) {
+          this.fireHeld = false;
         }
       }),
     );
@@ -307,7 +329,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     const reload = this.hasActiveEffect('machineGunExpiresAt')
       ? MACHINE_GUN_RELOAD_MS
       : STANDARD_RELOAD_MS;
-    if (!this.tankStore.isActive() || now - this.lastShotAt < reload) {
+    if (this.matchEnded || !this.tankStore.isActive() || now - this.lastShotAt < reload) {
       return false;
     }
 
@@ -323,14 +345,18 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         cellHeight / 2 +
         movement.y * muzzleDistance,
       direction,
+      local: true,
     });
     this.lastShotAt = now;
     this.soundEffects.playShot(this.hasActiveEffect('machineGunExpiresAt'));
+    if (!this.isTutorial) {
+      this.gameService.sendPlayerShot(direction);
+    }
     return true;
   }
 
   private moveLocalTank(direction: PlayerDirection): void {
-    if (this.localTankMovement || !this.tankStore.isActive()) {
+    if (this.matchEnded || this.localTankMovement || !this.tankStore.isActive()) {
       return;
     }
 
@@ -389,7 +415,9 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         projectile.y += (movement.y * distance) / steps;
         if (
           !this.isInsideCanvas(projectile.x, projectile.y) ||
-          this.resolveProjectileCollision(projectile, timestamp)
+          (projectile.local
+            ? this.resolveProjectileCollision(projectile, timestamp)
+            : this.resolveRemoteProjectileCollision(projectile))
         ) {
           remove = true;
           break;
@@ -447,6 +475,34 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       this.gameService.sendMapTileDestroyed(change);
     }
     return true;
+  }
+
+  private resolveRemoteProjectileCollision(projectile: BulletState): boolean {
+    const tileWidth = this.logicalWidth / this.battleMap.expandedColumns;
+    const tileHeight = this.logicalHeight / this.battleMap.expandedRows;
+    const tile = this.battleMap.getExpandedTile(
+      Math.floor(projectile.x / tileWidth),
+      Math.floor(projectile.y / tileHeight),
+    );
+    return tile !== undefined && terrainDefinition(tile).blocksMovement;
+  }
+
+  private addRemoteShot(shot: RealtimeShot): void {
+    if (shot.playerId === this.localPlayerId || this.matchEnded) {
+      return;
+    }
+    const direction = shot.position.direction;
+    const movement = directionMovement(direction);
+    const cellWidth = this.logicalWidth / this.gridColumns;
+    const cellHeight = this.logicalHeight / this.gridRows;
+    const muzzleDistance = Math.min(cellWidth, cellHeight) * 0.6;
+    this.projectiles.push({
+      x: shot.position.x * cellWidth + cellWidth / 2 + movement.x * muzzleDistance,
+      y: shot.position.y * cellHeight + cellHeight / 2 + movement.y * muzzleDistance,
+      direction,
+      local: false,
+    });
+    this.soundEffects.playShot(false);
   }
 
   private findProjectileHitPlayer(projectile: BulletState): Player | undefined {

@@ -16,11 +16,15 @@ describe('Game', () => {
     connectionStatus$: status.asObservable(),
     connect: vi.fn(),
     joinRoom: vi.fn(),
+    surrender: vi.fn(),
+    disconnect: vi.fn(),
   };
   const soundEffects = {
     enabled: signal(true).asReadonly(),
     toggle: vi.fn(),
     playGameOver: vi.fn(),
+    startMusic: vi.fn(),
+    stopMusic: vi.fn(),
   };
 
   beforeEach(async () => {

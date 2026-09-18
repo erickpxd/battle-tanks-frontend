@@ -21,9 +21,13 @@ import {
   PlayerMoveRequest,
   PlayerHitRequest,
   CollectPowerUpRequest,
+  FireShotRequest,
+  PlayerReadyRequest,
   RealtimeAck,
   RealtimeChatRequest,
   RealtimeMapTileChange,
+  RealtimeShot,
+  SurrenderRequest,
 } from '../models/realtime-event.model';
 import { GameActions } from '../store/game.actions';
 import {
@@ -178,6 +182,21 @@ export class GameService implements OnDestroy {
     this.invokeWithBenchmark('CollectPowerUp', request);
   }
 
+  setPlayerReady(ready: boolean): void {
+    const request: PlayerReadyRequest = { ready, ...createRealtimeMetadata() };
+    this.invokeWithBenchmark('SetPlayerReady', request);
+  }
+
+  sendPlayerShot(direction: string): void {
+    const request: FireShotRequest = { direction, ...createRealtimeMetadata() };
+    this.invokeWithBenchmark('FireShot', request);
+  }
+
+  surrender(): void {
+    const request: SurrenderRequest = createRealtimeMetadata();
+    this.invokeWithBenchmark('Surrender', request);
+  }
+
   sendChatMessage(message: string): void {
     const normalizedMessage = message.trim().slice(0, 250);
     if (!normalizedMessage) {
@@ -299,6 +318,17 @@ export class GameService implements OnDestroy {
     connection.on('ReceiveGameEventHistory', (gameEvents: GameEventEnvelope[]) => {
       this.store.dispatch(GameActions.gameEventHistoryReceived({ gameEvents }));
     });
+    connection.on('ReceiveGameStarted', () => {
+      sessionStorage.setItem(GAME_CONFIG.gameStartedStorageKey, 'true');
+      this.store.dispatch(GameActions.gameStarted());
+    });
+    connection.on('ReceivePlayerShot', (shot: RealtimeShot) => {
+      this.benchmark.recordReceived();
+      this.store.dispatch(GameActions.playerShot({ shot }));
+    });
+    connection.on('ReceiveGameEnded', (gameEvent: GameEventEnvelope) => {
+      this.store.dispatch(GameActions.gameEndedReceived({ gameEvent }));
+    });
     connection.onreconnecting(() => {
       this.store.dispatch(GameActions.connectionStatusChanged({ status: 'connecting' }));
     });
@@ -348,13 +378,23 @@ export class GameService implements OnDestroy {
 
   private invokeWithBenchmark(
     methodName:
-      'MovePlayer' | 'HitPlayer' | 'SendChatMessage' | 'DestroyMapTile' | 'CollectPowerUp',
+      | 'MovePlayer'
+      | 'HitPlayer'
+      | 'SendChatMessage'
+      | 'DestroyMapTile'
+      | 'CollectPowerUp'
+      | 'SetPlayerReady'
+      | 'FireShot'
+      | 'Surrender',
     request:
       | PlayerMoveRequest
       | PlayerHitRequest
       | RealtimeChatRequest
       | RealtimeMapTileChange
-      | CollectPowerUpRequest,
+      | CollectPowerUpRequest
+      | PlayerReadyRequest
+      | FireShotRequest
+      | SurrenderRequest,
   ): void {
     if (this.connection?.state !== HubConnectionState.Connected || !this.joinedRoomCode) {
       return;

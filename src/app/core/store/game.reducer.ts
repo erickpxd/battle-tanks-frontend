@@ -10,6 +10,7 @@ import {
 } from '../models/mqtt-game-event.model';
 import { Player } from '../models/player.model';
 import { PowerUp } from '../models/power-up.model';
+import { RealtimeShot } from '../models/realtime-event.model';
 import { GameActions } from './game.actions';
 
 export const gameFeatureKey = 'game';
@@ -31,6 +32,8 @@ export interface RealtimeGameState {
   readonly processedGameEventIds: readonly string[];
   readonly lastGameEvent: GameEventEnvelope | null;
   readonly gameEnded: GameEventEnvelope<GameEndedEventData> | null;
+  readonly gameStarted: boolean;
+  readonly lastPlayerShot: RealtimeShot | null;
 }
 
 export const initialRealtimeGameState: RealtimeGameState = {
@@ -50,6 +53,8 @@ export const initialRealtimeGameState: RealtimeGameState = {
   processedGameEventIds: [],
   lastGameEvent: null,
   gameEnded: null,
+  gameStarted: false,
+  lastPlayerShot: null,
 };
 
 export const gameReducer = createReducer(
@@ -125,6 +130,9 @@ export const gameReducer = createReducer(
     gameEvents.reduce(applyGameEvent, state),
   ),
   on(GameActions.mqttGameEventReceived, (state, { gameEvent }) => applyGameEvent(state, gameEvent)),
+  on(GameActions.gameStarted, (state) => ({ ...state, gameStarted: true })),
+  on(GameActions.playerShot, (state, { shot }) => ({ ...state, lastPlayerShot: shot })),
+  on(GameActions.gameEndedReceived, (state, { gameEvent }) => applyGameEvent(state, gameEvent)),
   on(GameActions.realtimeStateReset, () => initialRealtimeGameState),
 );
 

@@ -25,8 +25,8 @@
             {{ mqttConnectionLabel() }}
           </span>
         }
-        <button type="button" class="button button--secondary" (click)="backToWaitingRoom()">
-          {{ isTutorial ? 'Voltar ao menu' : 'Voltar à sala' }}
+        <button type="button" class="button button--secondary" (click)="leaveMatch()">
+          {{ isTutorial ? 'Voltar ao menu' : 'Se render' }}
         </button>
       </div>
     </div>
@@ -40,8 +40,14 @@
   @if (latestGameEventLabel) {
     <p class="mqtt-event" role="status">{{ latestGameEventLabel }}</p>
   }
-  @if (gameEndedMessage) {
-    <p class="game-ended" role="alert">{{ gameEndedMessage }}</p>
+  @if (resultTitle) {
+    <section class="game-result" role="alert" aria-live="assertive">
+      <div class="game-result__card">
+        <h2>{{ resultTitle }}</h2>
+        <p>{{ gameEndedMessage }}</p>
+        <button type="button" class="button" (click)="goToMenu()">Ir para o menu</button>
+      </div>
+    </section>
   }
 
   <aside class="controls" aria-label="Controles do tanque">

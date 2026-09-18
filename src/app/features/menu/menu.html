@@ -37,6 +37,7 @@
         maxlength="40"
         autocomplete="nickname"
         placeholder="Digite seu nome"
+        [readonly]="isAuthenticated"
         [(ngModel)]="playerName"
       />
       @if (nameError) {

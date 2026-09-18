@@ -22,6 +22,7 @@ describe('GameCanvas', () => {
     sendPlayerHit: vi.fn(),
     sendMapTileDestroyed: vi.fn(),
     collectPowerUp: vi.fn(),
+    sendPlayerShot: vi.fn(),
   };
 
   const soundEffects = {
@@ -112,6 +113,23 @@ describe('GameCanvas', () => {
     expect(component.battleMap.originalRows).toBe(15);
     expect(component.battleMap.expandedColumns).toBe(60);
     expect(component.battleMap.expandedRows).toBe(45);
+  });
+
+  it('should render and play the sound of a remote shot received from SignalR', () => {
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playerShot({
+        shot: {
+          playerId: 'remote-player',
+          position: { x: 5, y: 5, direction: 'left' },
+          eventId: 'shot-1',
+          clientSentAtUnixMs: Date.now(),
+          serverReceivedAt: new Date().toISOString(),
+        },
+      }),
+    );
+
+    expect(soundEffects.playShot).toHaveBeenCalledWith(false);
   });
 
   it('should animate before completing a one-cell movement', () => {

@@ -7,6 +7,7 @@ import { GameEventEnvelope, MqttConnectionStatus } from '../models/mqtt-game-eve
 import { Player } from '../models/player.model';
 import { PowerUp } from '../models/power-up.model';
 import { Position } from '../models/position.model';
+import { RealtimeShot } from '../models/realtime-event.model';
 
 export const GameActions = createActionGroup({
   source: 'Realtime Game',
@@ -26,6 +27,9 @@ export const GameActions = createActionGroup({
     'Mqtt Connection Status Changed': props<{ status: MqttConnectionStatus }>(),
     'Game Event History Received': props<{ gameEvents: GameEventEnvelope[] }>(),
     'Mqtt Game Event Received': props<{ gameEvent: GameEventEnvelope }>(),
+    'Game Started': emptyProps(),
+    'Player Shot': props<{ shot: RealtimeShot }>(),
+    'Game Ended Received': props<{ gameEvent: GameEventEnvelope }>(),
     'Realtime State Reset': emptyProps(),
   },
 });

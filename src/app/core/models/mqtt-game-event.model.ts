@@ -31,6 +31,8 @@ export interface GameEndedEventData {
   readonly defeatedPlayerId: string;
   readonly winnerPlayerId: string | null;
   readonly triggerEventId: string;
+  readonly defeatedPlayerName?: string;
+  readonly winnerPlayerName?: string | null;
 }
 
 export function isGameEventEnvelope(value: unknown): value is GameEventEnvelope {

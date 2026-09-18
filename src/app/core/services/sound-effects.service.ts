@@ -9,6 +9,8 @@ type OscillatorWave = OscillatorType;
 export class SoundEffectsService {
   private readonly enabledState = signal(readInitialSoundPreference());
   private context?: AudioContext;
+  private musicRequested = false;
+  private musicInterval?: ReturnType<typeof setInterval>;
 
   readonly enabled = this.enabledState.asReadonly();
 
@@ -19,6 +21,9 @@ export class SoundEffectsService {
     if (enabled) {
       this.unlock();
       this.playPowerUp('repair-kit');
+      this.ensureMusicPlaying();
+    } else {
+      this.stopMusicLoop();
     }
     return enabled;
   }
@@ -26,8 +31,20 @@ export class SoundEffectsService {
   unlock(): void {
     const context = this.getContext();
     if (context?.state === 'suspended') {
-      void context.resume();
+      void context.resume().then(() => this.ensureMusicPlaying());
+    } else {
+      this.ensureMusicPlaying();
     }
+  }
+
+  startMusic(): void {
+    this.musicRequested = true;
+    this.ensureMusicPlaying();
+  }
+
+  stopMusic(): void {
+    this.musicRequested = false;
+    this.stopMusicLoop();
   }
 
   playMove(): void {
@@ -70,6 +87,32 @@ export class SoundEffectsService {
   playGameOver(): void {
     [330, 247, 196, 131].forEach((frequency, index) => {
       this.tone(frequency, frequency * 0.92, 0.18, 0.07, 'square', index * 0.14);
+    });
+  }
+
+  private ensureMusicPlaying(): void {
+    if (!this.musicRequested || !this.enabledState() || this.musicInterval) {
+      return;
+    }
+    const context = this.getContext();
+    if (!context || context.state !== 'running') {
+      return;
+    }
+    this.scheduleMusicPhrase();
+    this.musicInterval = setInterval(() => this.scheduleMusicPhrase(), 1_920);
+  }
+
+  private stopMusicLoop(): void {
+    if (this.musicInterval) {
+      clearInterval(this.musicInterval);
+      this.musicInterval = undefined;
+    }
+  }
+
+  private scheduleMusicPhrase(): void {
+    const melody = [110, 165, 196, 165, 131, 196, 220, 165] as const;
+    melody.forEach((frequency, index) => {
+      this.tone(frequency, frequency, 0.16, 0.012, 'square', index * 0.24);
     });
   }
 

@@ -21,6 +21,7 @@ import {
 import {
   selectGameEnded,
   selectLastGameEvent,
+  selectLocalPlayerId,
   selectMqttConnectionStatus,
 } from '../../core/store/game.selectors';
 import { GameActions } from '../../core/store/game.actions';
@@ -40,6 +41,8 @@ export class Game implements OnInit, OnDestroy {
   mqttConnectionStatus: MqttConnectionStatus = 'disconnected';
   latestGameEventLabel = '';
   gameEndedMessage = '';
+  resultTitle = '';
+  localPlayerId: string | null = null;
   isTutorial = false;
   mapName = '';
   readonly soundEnabled;
@@ -57,6 +60,7 @@ export class Game implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.soundEffects.startMusic();
     this.isTutorial = this.router.url.startsWith('/tutorial');
     this.mapName = getMapDefinition(
       this.isTutorial ? 'battleground' : sessionStorage.getItem(GAME_CONFIG.mapStorageKey),
@@ -91,10 +95,19 @@ export class Game implements OnInit, OnDestroy {
       }),
     );
     this.subscriptions.add(
+      this.store.select(selectLocalPlayerId).subscribe((playerId) => {
+        this.localPlayerId = playerId;
+      }),
+    );
+    this.subscriptions.add(
       this.store.select(selectGameEnded).subscribe((gameEvent) => {
         const data = gameEvent?.data;
+        const won = !!data?.winnerPlayerId && data.winnerPlayerId === this.localPlayerId;
+        this.resultTitle = data ? (won ? 'VITÓRIA' : 'DERROTA') : '';
         this.gameEndedMessage = data
-          ? `Partida encerrada. Vencedor: ${data.winnerPlayerId ?? 'não definido'}.`
+          ? won
+            ? `Você venceu${data.defeatedPlayerName ? ` contra ${data.defeatedPlayerName}` : ''}!`
+            : `${data.winnerPlayerName ?? 'O adversário'} venceu a partida.`
           : '';
         if (gameEvent) {
           this.soundEffects.playGameOver();
@@ -108,9 +121,23 @@ export class Game implements OnInit, OnDestroy {
     }
   }
 
-  backToWaitingRoom(): void {
+  leaveMatch(): void {
+    if (!this.isTutorial) {
+      this.gameService.surrender();
+      return;
+    }
+    this.goToMenu();
+  }
+
+  goToMenu(): void {
+    if (!this.isTutorial) {
+      this.gameService.disconnect();
+    }
+    sessionStorage.removeItem(GAME_CONFIG.roomCodeStorageKey);
+    sessionStorage.removeItem(GAME_CONFIG.mapStorageKey);
+    sessionStorage.removeItem(GAME_CONFIG.gameStartedStorageKey);
     this.store.dispatch(GameActions.connectionErrorChanged({ message: null }));
-    void this.router.navigate([this.isTutorial ? '/menu' : '/waiting-room']);
+    void this.router.navigate(['/menu']);
   }
 
   toggleSound(): void {
@@ -138,6 +165,7 @@ export class Game implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.soundEffects.stopMusic();
     this.subscriptions.unsubscribe();
   }
 }
