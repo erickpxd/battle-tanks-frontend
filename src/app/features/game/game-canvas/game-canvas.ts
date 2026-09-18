@@ -17,6 +17,7 @@ import { PowerUp, POWER_UP_LABELS, PowerUpType } from '../../../core/models/powe
 import { PlayerDirection, Position } from '../../../core/models/position.model';
 import { Tank, TankStatus } from '../../../core/models/tank.model';
 import { GameService } from '../../../core/services/game.service';
+import { SoundEffectsService } from '../../../core/services/sound-effects.service';
 import {
   selectLastMapTileChange,
   selectLastPlayerHit,
@@ -28,6 +29,7 @@ import {
 import { BulletComponent, BulletState } from '../bullet/bullet.component';
 import { ExplosionSignalStore } from '../explosion/explosion.store';
 import { BattleMapSignalStore } from '../map/battle-map.store';
+import { MapVisualTheme } from '../map/map-catalog';
 import { TerrainType, terrainDefinition } from '../map/terrain-type';
 import { TankSignalStore } from '../tank/tank.store';
 
@@ -121,11 +123,14 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   private latestPlayers: readonly Player[] = [];
   private localSpawnAssigned = false;
   private usingWindowResize = false;
+  private lastRemoteMapSoundAt = Number.NEGATIVE_INFINITY;
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (isTypingTarget(event.target)) {
       return;
     }
+
+    this.soundEffects.unlock();
 
     const key = event.key.toLowerCase();
     if (key === ' ' || key === 'spacebar') {
@@ -173,6 +178,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
 
   constructor(
     private readonly gameService: GameService,
+    private readonly soundEffects: SoundEffectsService,
     private readonly store: Store,
     private readonly zone: NgZone,
   ) {}
@@ -213,6 +219,11 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         .subscribe((change) => {
           if (this.mapStore.destroyTile(change.column, change.row)) {
             this.addExplosionAtTile(change.column, change.row, true);
+            const now = performance.now();
+            if (now - this.lastRemoteMapSoundAt > 80) {
+              this.soundEffects.playImpact(true);
+              this.lastRemoteMapSoundAt = now;
+            }
           }
         }),
     );
@@ -223,6 +234,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         .subscribe((player) => {
           if (this.isLocalPlayer(player) && typeof player.health === 'number') {
             this.tankStore.setHealth(player.health);
+            this.soundEffects.playPlayerHit(player.status === 'destroyed');
           }
         }),
     );
@@ -313,6 +325,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       direction,
     });
     this.lastShotAt = now;
+    this.soundEffects.playShot(this.hasActiveEffect('machineGunExpiresAt'));
     return true;
   }
 
@@ -330,6 +343,8 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     if (!this.canOccupyCell(nextX, nextY)) {
       return;
     }
+
+    this.soundEffects.playMove();
 
     this.localTankMovement = {
       from: { x: this.localTank.position.x, y: this.localTank.position.y },
@@ -396,6 +411,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
         destructive: true,
       });
       this.gameService.sendPlayerHit(hitPlayer.id, this.currentShotDamage);
+      this.soundEffects.playImpact(true);
       return true;
     }
 
@@ -426,6 +442,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       startedAt: timestamp,
       destructive: destroyed.length > 0,
     });
+    this.soundEffects.playImpact(destroyed.length > 0);
     for (const change of destroyed) {
       this.gameService.sendMapTileDestroyed(change);
     }
@@ -593,12 +610,14 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     if (this.isTutorial) {
       this.activePowerUps = this.activePowerUps.filter((item) => item.id !== powerUp.id);
       this.applyTutorialPowerUp(powerUp.type);
+      this.soundEffects.playPowerUp(powerUp.type);
       this.scheduleTutorialPowerUp();
       return;
     }
 
     this.collectingPowerUpIds.add(powerUp.id);
     this.activePowerUps = this.activePowerUps.filter((item) => item.id !== powerUp.id);
+    this.soundEffects.playPowerUp(powerUp.type);
     this.gameService.collectPowerUp(powerUp.id);
   }
 
@@ -689,8 +708,9 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
 
     const context = this.context;
     context.clearRect(0, 0, this.logicalWidth, this.logicalHeight);
-    context.fillStyle = '#11150f';
+    context.fillStyle = this.mapStore.theme.background;
     context.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+    this.drawGroundTexture(context);
     this.drawExpandedMap(context);
     this.drawGrid(context);
     this.drawPowerUps(context);
@@ -727,7 +747,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     const cellHeight = this.logicalHeight / this.gridRows;
 
     context.beginPath();
-    context.strokeStyle = '#252d21';
+    context.strokeStyle = this.mapStore.theme.grid;
     context.lineWidth = 1;
     for (let x = 0; x <= this.logicalWidth; x += cellWidth) {
       context.moveTo(x, 0);
@@ -738,6 +758,15 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       context.lineTo(this.logicalWidth, y);
     }
     context.stroke();
+  }
+
+  private drawGroundTexture(context: CanvasRenderingContext2D): void {
+    context.fillStyle = this.mapStore.theme.groundAccent;
+    for (let y = 12; y < this.logicalHeight; y += 40) {
+      for (let x = (y / 40) % 2 === 0 ? 12 : 28; x < this.logicalWidth; x += 40) {
+        context.fillRect(x, y, 2, 2);
+      }
+    }
   }
 
   private drawPowerUps(context: CanvasRenderingContext2D): void {
@@ -828,20 +857,37 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     width: number,
     height: number,
   ): void {
-    const definition = terrainDefinition(tile);
-    context.fillStyle = definition.color ?? '#11150f';
+    const theme = this.mapStore.theme;
+    context.fillStyle = terrainThemeColor(tile, theme);
     context.fillRect(x + 0.5, y + 0.5, Math.max(width - 1, 1), Math.max(height - 1, 1));
 
     if (tile === TerrainType.DestructibleWall) {
-      context.fillStyle = '#e09055';
+      context.fillStyle = theme.brickLight;
       context.fillRect(x + 1.5, y + 1.5, Math.max(width - 3, 1), 2);
-      context.fillStyle = '#71341f';
+      context.fillStyle = theme.brickDark;
       context.fillRect(x + 1.5, y + height - 3.5, Math.max(width - 3, 1), 2);
     } else if (tile === TerrainType.IndestructibleWall) {
-      context.fillStyle = '#e4e9e8';
+      context.fillStyle = theme.steelLight;
       context.fillRect(x + 1.5, y + 1.5, Math.max(width - 3, 1), 2);
-      context.fillStyle = '#596266';
+      context.fillStyle = theme.steelDark;
       context.fillRect(x + width - 3.5, y + 2, 2, Math.max(height - 4, 1));
+    } else if (tile === TerrainType.Water) {
+      context.fillStyle = theme.waterAccent;
+      context.fillRect(x + 1, y + height * 0.35, width * 0.55, 1.5);
+      context.fillRect(x + width * 0.45, y + height * 0.7, width * 0.45, 1.5);
+    } else if (tile === TerrainType.Trees) {
+      context.fillStyle = theme.treesAccent;
+      context.beginPath();
+      context.arc(x + width * 0.35, y + height * 0.45, Math.max(width * 0.2, 1), 0, Math.PI * 2);
+      context.arc(x + width * 0.65, y + height * 0.6, Math.max(width * 0.22, 1), 0, Math.PI * 2);
+      context.fill();
+    } else if (tile === TerrainType.Ice) {
+      context.strokeStyle = theme.iceAccent;
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(x + 2, y + height - 2);
+      context.lineTo(x + width - 2, y + 2);
+      context.stroke();
     }
   }
 
@@ -1031,4 +1077,16 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 function isFutureDate(value: string | null | undefined): boolean {
   return typeof value === 'string' && Date.parse(value) > Date.now();
+}
+
+function terrainThemeColor(tile: TerrainType, theme: MapVisualTheme): string {
+  const colors: Record<TerrainType, string> = {
+    [TerrainType.Ground]: theme.background,
+    [TerrainType.IndestructibleWall]: theme.steel,
+    [TerrainType.DestructibleWall]: theme.brick,
+    [TerrainType.Water]: theme.water,
+    [TerrainType.Trees]: theme.trees,
+    [TerrainType.Ice]: theme.ice,
+  };
+  return colors[tile] ?? theme.background;
 }

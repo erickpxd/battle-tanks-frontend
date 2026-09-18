@@ -12,6 +12,7 @@ import { Menu } from './menu';
 describe('Menu', () => {
   let authServiceMock: Partial<AuthService>;
   let roomApiServiceMock: Partial<RoomApiService>;
+  let createdMaps: string[];
 
   beforeEach(async () => {
     sessionStorage.clear();
@@ -23,16 +24,19 @@ describe('Menu', () => {
       logout: () => {},
     };
 
+    createdMaps = [];
     roomApiServiceMock = {
-      createRoom: () =>
-        of({
+      createRoom: (mapSelected = 'battleground') => {
+        createdMaps.push(mapSelected);
+        return of({
           id: '123',
           roomCode: 'TANK-4X9Z',
-          mapSelected: 'default',
+          mapSelected,
           status: 'Waiting',
           playerCount: 1,
           players: ['Erick Silva'],
-        }),
+        });
+      },
       joinRoomByCode: (code: string) =>
         of({
           id: '123',
@@ -98,6 +102,20 @@ describe('Menu', () => {
     expect(sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey)).toBe('Erick Silva');
     expect(sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey)).toBe('TANK-4X9Z');
     expect(navigate).toHaveBeenCalledWith(['/waiting-room']);
+  });
+
+  it('should create and persist a room with the selected map', () => {
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(Menu);
+    fixture.detectChanges();
+    fixture.componentInstance.playerName = 'Erick';
+    fixture.componentInstance.selectedMap = 'swamp';
+
+    fixture.componentInstance.createRoom();
+
+    expect(createdMaps).toEqual(['swamp']);
+    expect(sessionStorage.getItem(GAME_CONFIG.mapStorageKey)).toBe('swamp');
   });
 
   it('should normalize the room code before joining via REST API', () => {

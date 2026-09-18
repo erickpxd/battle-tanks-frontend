@@ -59,6 +59,24 @@
   }
 }
 
+.sound-toggle {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.4rem 0.65rem;
+  text-transform: uppercase;
+
+  &:focus-visible,
+  &:hover {
+    border-color: var(--accent);
+    color: var(--accent-soft);
+  }
+}
+
 .battle-panel {
   background: var(--panel);
   border: 2px solid var(--border);

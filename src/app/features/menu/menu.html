@@ -10,7 +10,9 @@
 
     <div class="auth-status-bar">
       @if (isAuthenticated) {
-        <p>Autenticado como: <strong>{{ playerName || 'Jogador' }}</strong></p>
+        <p>
+          Autenticado como: <strong>{{ playerName || 'Jogador' }}</strong>
+        </p>
         <button type="button" class="button button--secondary button--sm" (click)="logout()">
           Sair
         </button>
@@ -40,6 +42,24 @@
       @if (nameError) {
         <p class="field-error" role="alert">{{ nameError }}</p>
       }
+
+      <fieldset class="map-selector">
+        <legend>Escolha o mapa da nova sala</legend>
+        <div class="map-grid">
+          @for (map of maps; track map.id) {
+            <label class="map-card" [class.map-card--selected]="selectedMap === map.id">
+              <input type="radio" name="selectedMap" [value]="map.id" [(ngModel)]="selectedMap" />
+              <span
+                class="map-preview"
+                [class]="'map-preview map-preview--' + map.id"
+                aria-hidden="true"
+              ></span>
+              <strong>{{ map.name }}</strong>
+              <small>{{ map.description }}</small>
+            </label>
+          }
+        </div>
+      </fieldset>
 
       <button
         type="button"

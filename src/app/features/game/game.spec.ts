@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideStore } from '@ngrx/store';
@@ -5,6 +6,7 @@ import { BehaviorSubject } from 'rxjs';
 
 import { GAME_CONFIG } from '../../core/config/game.config';
 import { ConnectionStatus, GameService } from '../../core/services/game.service';
+import { SoundEffectsService } from '../../core/services/sound-effects.service';
 import { gameFeatureKey, gameReducer } from '../../core/store/game.reducer';
 import { Game } from './game';
 
@@ -14,6 +16,11 @@ describe('Game', () => {
     connectionStatus$: status.asObservable(),
     connect: vi.fn(),
     joinRoom: vi.fn(),
+  };
+  const soundEffects = {
+    enabled: signal(true).asReadonly(),
+    toggle: vi.fn(),
+    playGameOver: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -26,6 +33,7 @@ describe('Game', () => {
         provideRouter([]),
         provideStore({ [gameFeatureKey]: gameReducer }),
         { provide: GameService, useValue: gameService },
+        { provide: SoundEffectsService, useValue: soundEffects },
       ],
     })
       .overrideComponent(Game, {

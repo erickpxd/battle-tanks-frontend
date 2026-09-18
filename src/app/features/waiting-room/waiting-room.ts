@@ -20,6 +20,7 @@ import { Player } from '../../core/models/player.model';
 import { RoomModel } from '../../core/models/room.model';
 import { ConnectionStatus, GameService } from '../../core/services/game.service';
 import { RoomApiService } from '../../core/services/room-api.service';
+import { getMapDefinition } from '../game/map/map-catalog';
 import {
   selectChatMessages,
   selectConnectionError,
@@ -47,6 +48,7 @@ export class WaitingRoom implements OnInit, OnDestroy {
   availableRooms: RoomModel[] = [];
   savedPlayerName = '';
   savedRoomCode = '';
+  selectedMap = '';
 
   private readonly subscriptions = new Subscription();
   private destroyed = false;
@@ -63,6 +65,7 @@ export class WaitingRoom implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.savedPlayerName = sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey) ?? '';
     this.savedRoomCode = sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey) ?? '';
+    this.selectedMap = getMapDefinition(sessionStorage.getItem(GAME_CONFIG.mapStorageKey)).name;
     if (!normalizeName(this.savedPlayerName) || !this.savedRoomCode.trim()) {
       void this.router.navigate(['/menu']);
       return;
@@ -111,6 +114,14 @@ export class WaitingRoom implements OnInit, OnDestroy {
     this.roomApiService.getRooms().subscribe({
       next: (rooms) => {
         this.availableRooms = rooms;
+        const currentRoom = rooms.find((room) => room.roomCode === this.savedRoomCode);
+        if (currentRoom) {
+          this.selectedMap = getMapDefinition(currentRoom.mapSelected).name;
+          sessionStorage.setItem(
+            GAME_CONFIG.mapStorageKey,
+            getMapDefinition(currentRoom.mapSelected).id,
+          );
+        }
         this.changeDetectorRef.markForCheck();
       },
       error: () => {
@@ -147,6 +158,7 @@ export class WaitingRoom implements OnInit, OnDestroy {
     this.gameService.disconnect();
     sessionStorage.removeItem(GAME_CONFIG.playerNameStorageKey);
     sessionStorage.removeItem(GAME_CONFIG.roomCodeStorageKey);
+    sessionStorage.removeItem(GAME_CONFIG.mapStorageKey);
     void this.router.navigate(['/menu']);
   }
 
