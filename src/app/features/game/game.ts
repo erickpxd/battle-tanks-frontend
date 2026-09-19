@@ -70,6 +70,11 @@ export class Game implements OnInit, OnDestroy {
       return;
     }
 
+    if (sessionStorage.getItem(GAME_CONFIG.gameStartedStorageKey) !== 'true') {
+      void this.router.navigate(['/waiting-room']);
+      return;
+    }
+
     this.playerName = (sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey) ?? '').trim();
     if (!this.playerName) {
       void this.router.navigate(['/menu']);
