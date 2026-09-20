@@ -132,6 +132,38 @@ describe('GameCanvas', () => {
     expect(soundEffects.playShot).toHaveBeenCalledWith(false);
   });
 
+  it('should stop a remote projectile when it reaches the local tank', () => {
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'local-player',
+            name: 'Erick',
+            position: { x: 1, y: 1, direction: 'right' },
+          },
+        ],
+      }),
+    );
+    store.dispatch(
+      GameActions.playerShot({
+        shot: {
+          playerId: 'remote-player',
+          position: { x: 2, y: 1, direction: 'left' },
+          eventId: 'shot-hit-local',
+          clientSentAtUnixMs: Date.now(),
+          serverReceivedAt: new Date().toISOString(),
+        },
+      }),
+    );
+
+    runNextFrame();
+
+    expect((component as unknown as { projectiles: unknown[] }).projectiles).toHaveLength(0);
+    expect(component.explosionStore.explosions()).toHaveLength(1);
+    expect(soundEffects.playImpact).toHaveBeenCalledWith(true);
+  });
+
   it('should animate before completing a one-cell movement', () => {
     const initialX = component.localTank.position.x;
     const initialY = component.localTank.position.y;
