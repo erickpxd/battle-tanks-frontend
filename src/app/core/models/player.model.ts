@@ -16,4 +16,5 @@ export interface Player {
   eventId?: string;
   clientSentAtUnixMs?: number;
   serverReceivedAt?: string;
+  ready?: boolean;
 }

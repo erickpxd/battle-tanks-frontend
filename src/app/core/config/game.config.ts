@@ -4,6 +4,8 @@ export const GAME_CONFIG = {
   playerNameStorageKey: 'battle-city-player-name',
   roomCodeStorageKey: 'battle-city-room-code',
   mapStorageKey: 'battle-city-map',
+  gameStartedStorageKey: 'battle-city-game-started',
+  accountNameStorageKey: 'battle-tanks-account-name',
   soundEnabledStorageKey: 'battle-city-sound-enabled',
   tokenStorageKey: 'battle-tanks-auth-token',
   playerIdStorageKey: 'battle-tanks-player-id',

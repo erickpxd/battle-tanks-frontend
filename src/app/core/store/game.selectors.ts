@@ -55,3 +55,11 @@ export const selectLastGameEvent = createSelector(
   (state) => state.lastGameEvent,
 );
 export const selectGameEnded = createSelector(selectRealtimeGameState, (state) => state.gameEnded);
+export const selectGameStarted = createSelector(
+  selectRealtimeGameState,
+  (state) => state.gameStarted,
+);
+export const selectLastPlayerShot = createSelector(
+  selectRealtimeGameState,
+  (state) => state.lastPlayerShot,
+);

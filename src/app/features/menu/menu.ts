@@ -63,7 +63,7 @@ export class Menu implements OnInit {
       return;
     }
 
-    const name = normalizeName(this.playerName);
+    const name = normalizeName(this.authService.getUsername() ?? this.playerName);
     if (!name) {
       this.nameError = 'Informe seu nome para criar uma sala.';
       return;
@@ -91,7 +91,7 @@ export class Menu implements OnInit {
       return;
     }
 
-    const name = normalizeName(this.playerName);
+    const name = normalizeName(this.authService.getUsername() ?? this.playerName);
     const roomCode = normalizeRoomCode(this.roomCode);
     this.nameError = name ? '' : 'Informe seu nome para entrar na sala.';
     this.roomCodeError = roomCode ? '' : 'Informe o código da sala.';
@@ -133,6 +133,7 @@ export class Menu implements OnInit {
     sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, name);
     sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, roomCode);
     sessionStorage.setItem(GAME_CONFIG.mapStorageKey, getMapDefinition(mapSelected).id);
+    sessionStorage.removeItem(GAME_CONFIG.gameStartedStorageKey);
     void this.router.navigate(['/waiting-room']);
   }
 }

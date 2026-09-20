@@ -23,6 +23,22 @@ export interface CollectPowerUpRequest extends RealtimeMetadata {
   powerUpId: string;
 }
 
+export interface PlayerReadyRequest extends RealtimeMetadata {
+  ready: boolean;
+}
+
+export interface FireShotRequest extends RealtimeMetadata {
+  direction: string;
+}
+
+export interface SurrenderRequest extends RealtimeMetadata {}
+
+export interface RealtimeShot extends RealtimeMetadata {
+  playerId: string;
+  position: Position;
+  serverReceivedAt: string;
+}
+
 export interface RealtimeAck extends RealtimeMetadata {
   serverReceivedAt: string;
 }

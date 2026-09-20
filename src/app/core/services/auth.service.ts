@@ -39,6 +39,7 @@ export class AuthService {
   logout(): void {
     localStorage.removeItem(GAME_CONFIG.tokenStorageKey);
     localStorage.removeItem(GAME_CONFIG.playerIdStorageKey);
+    localStorage.removeItem(GAME_CONFIG.accountNameStorageKey);
     sessionStorage.removeItem(GAME_CONFIG.playerNameStorageKey);
     this.isAuthenticatedSubject.next(false);
   }
@@ -56,12 +57,21 @@ export class AuthService {
   }
 
   getUsername(): string | null {
-    return sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey);
+    const accountName = localStorage.getItem(GAME_CONFIG.accountNameStorageKey);
+    if (accountName) {
+      return accountName;
+    }
+    const legacySessionName = sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey);
+    if (legacySessionName && this.hasValidToken()) {
+      localStorage.setItem(GAME_CONFIG.accountNameStorageKey, legacySessionName);
+    }
+    return legacySessionName;
   }
 
   private saveSession(response: AuthResponse): void {
     localStorage.setItem(GAME_CONFIG.tokenStorageKey, response.token);
     localStorage.setItem(GAME_CONFIG.playerIdStorageKey, response.playerId);
+    localStorage.setItem(GAME_CONFIG.accountNameStorageKey, response.username);
     sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, response.username);
     this.isAuthenticatedSubject.next(true);
   }

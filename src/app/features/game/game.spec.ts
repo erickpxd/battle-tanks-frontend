@@ -16,11 +16,15 @@ describe('Game', () => {
     connectionStatus$: status.asObservable(),
     connect: vi.fn(),
     joinRoom: vi.fn(),
+    surrender: vi.fn(),
+    disconnect: vi.fn(),
   };
   const soundEffects = {
     enabled: signal(true).asReadonly(),
     toggle: vi.fn(),
     playGameOver: vi.fn(),
+    startMusic: vi.fn(),
+    stopMusic: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -47,6 +51,7 @@ describe('Game', () => {
 
   it('should create with a saved player and reuse the shared connection', () => {
     sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    sessionStorage.setItem(GAME_CONFIG.gameStartedStorageKey, 'true');
     const fixture = TestBed.createComponent(Game);
     fixture.detectChanges();
 
@@ -56,6 +61,7 @@ describe('Game', () => {
   });
 
   it('should redirect to the menu without a saved player', () => {
+    sessionStorage.setItem(GAME_CONFIG.gameStartedStorageKey, 'true');
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const fixture = TestBed.createComponent(Game);
@@ -63,6 +69,18 @@ describe('Game', () => {
     fixture.detectChanges();
 
     expect(navigate).toHaveBeenCalledWith(['/menu']);
+    expect(gameService.connect).not.toHaveBeenCalled();
+  });
+
+  it('should return to the waiting room before the server starts the match', () => {
+    sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(Game);
+
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledWith(['/waiting-room']);
     expect(gameService.connect).not.toHaveBeenCalled();
   });
 
