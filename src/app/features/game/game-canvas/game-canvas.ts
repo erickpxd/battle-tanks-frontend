@@ -417,7 +417,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
           !this.isInsideCanvas(projectile.x, projectile.y) ||
           (projectile.local
             ? this.resolveProjectileCollision(projectile, timestamp)
-            : this.resolveRemoteProjectileCollision(projectile))
+            : this.resolveRemoteProjectileCollision(projectile, timestamp))
         ) {
           remove = true;
           break;
@@ -477,7 +477,18 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
     return true;
   }
 
-  private resolveRemoteProjectileCollision(projectile: BulletState): boolean {
+  private resolveRemoteProjectileCollision(projectile: BulletState, timestamp: number): boolean {
+    if (this.projectileHitsLocalTank(projectile)) {
+      this.explosionStore.start({
+        x: projectile.x,
+        y: projectile.y,
+        startedAt: timestamp,
+        destructive: true,
+      });
+      this.soundEffects.playImpact(true);
+      return true;
+    }
+
     const tileWidth = this.logicalWidth / this.battleMap.expandedColumns;
     const tileHeight = this.logicalHeight / this.battleMap.expandedRows;
     const tile = this.battleMap.getExpandedTile(
@@ -485,6 +496,20 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       Math.floor(projectile.y / tileHeight),
     );
     return tile !== undefined && terrainDefinition(tile).blocksMovement;
+  }
+
+  private projectileHitsLocalTank(projectile: BulletState): boolean {
+    if (!this.tankStore.isActive()) {
+      return false;
+    }
+    const cellWidth = this.logicalWidth / this.gridColumns;
+    const cellHeight = this.logicalHeight / this.gridRows;
+    const centerX = this.renderedLocalTankPosition.x * cellWidth + cellWidth / 2;
+    const centerY = this.renderedLocalTankPosition.y * cellHeight + cellHeight / 2;
+    return (
+      Math.abs(projectile.x - centerX) <= this.tankSize / 2 + PROJECTILE_RADIUS &&
+      Math.abs(projectile.y - centerY) <= this.tankSize / 2 + PROJECTILE_RADIUS
+    );
   }
 
   private addRemoteShot(shot: RealtimeShot): void {

@@ -111,7 +111,11 @@ export class Game implements OnInit, OnDestroy {
         this.resultTitle = data ? (won ? 'VITÓRIA' : 'DERROTA') : '';
         this.gameEndedMessage = data
           ? won
-            ? `Você venceu${data.defeatedPlayerName ? ` contra ${data.defeatedPlayerName}` : ''}!`
+            ? `Você venceu${data.defeatedPlayerName ? ` contra ${data.defeatedPlayerName}` : ''}!${
+                data.winnerPointsAwarded
+                  ? ` +${data.winnerPointsAwarded} pontos — total ${data.winnerTotalScore ?? data.winnerPointsAwarded}.`
+                  : ''
+              }`
             : `${data.winnerPlayerName ?? 'O adversário'} venceu a partida.`
           : '';
         if (gameEvent) {
