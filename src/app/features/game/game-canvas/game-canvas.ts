@@ -9,6 +9,7 @@ import { Tank, TankStatus } from '../../../core/models/tank.model';
 import { GameService } from '../../../core/services/game.service';
 import { BulletComponent, BulletState } from '../bullet/bullet.component';
 import { ExplosionSignalStore } from '../explosion/explosion.store';
+import { GameScoreSignalStore } from '../game-score.store';
 import { BattleMapSignalStore } from '../map/battle-map.store';
 import { TerrainType, terrainDefinition } from '../map/terrain-type';
 import { TankSignalStore } from '../tank/tank.store';
@@ -35,7 +36,6 @@ const KEY_DIRECTIONS: Readonly<Record<string, PlayerDirection>> = {
 @Component({
   selector: 'app-game-canvas',
   imports: [BulletComponent],
-  providers: [BattleMapSignalStore, TankSignalStore, ExplosionSignalStore],
   templateUrl: './game-canvas.html',
   styleUrl: './game-canvas.scss',
 })
@@ -49,6 +49,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   private readonly mapStore = inject(BattleMapSignalStore);
   readonly tankStore = inject(TankSignalStore);
   readonly explosionStore = inject(ExplosionSignalStore);
+  private readonly scoreStore = inject(GameScoreSignalStore);
 
   readonly logicalWidth = 800;
   readonly logicalHeight = 600;
@@ -193,7 +194,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   }
 
   fireLocalShot(): boolean {
-    if (this.projectile || !this.tankStore.isActive()) {
+    if (this.projectile || !this.tankStore.isActive() || !this.scoreStore.consumeAmmo()) {
       return false;
     }
 
@@ -211,6 +212,16 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       direction,
     };
     return true;
+  }
+
+  simulateEnemyDestroyed(): void {
+    this.scoreStore.registerEnemyDestroyed();
+    this.explosionStore.start({
+      x: this.logicalWidth / 2,
+      y: this.logicalHeight / 2,
+      startedAt: performance.now(),
+      destructive: true,
+    });
   }
 
   private moveLocalTank(direction: PlayerDirection): void {
@@ -303,6 +314,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       destructive: destroyed.length > 0,
     });
     this.projectile = undefined;
+    this.scoreStore.registerObstacleDestroyed(destroyed.length);
     for (const change of destroyed) {
       this.gameService.sendMapTileDestroyed(change);
     }
