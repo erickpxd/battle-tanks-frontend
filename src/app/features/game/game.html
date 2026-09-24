@@ -20,8 +20,36 @@
     </div>
   </header>
 
-  <section class="battle-panel">
-    <app-game-canvas />
+  <section class="game-layout">
+    <section class="battle-panel" aria-label="Campo de batalha">
+      <app-game-canvas />
+    </section>
+
+    <aside class="player-panel" aria-label="Painel do jogador">
+      <p class="panel-title">Jogador 1</p>
+      <strong class="player-name">{{ playerName }}</strong>
+      <div class="stat-line">
+        <span>Vida</span>
+        <span class="hearts" aria-label="Vida restante">
+          @for (heart of hearts(); track $index) { <span aria-hidden="true">♥</span> }
+        </span>
+      </div>
+      <div class="stat-line"><span>Pontuação</span><strong>{{ scoreStore.score() }}</strong></div>
+      <div class="stat-line"><span>Munição</span><strong>{{ scoreStore.ammo() }}/{{ scoreStore.maxAmmo }}</strong></div>
+
+      <div class="players-state">
+        <p class="panel-title">Estado dos jogadores</p>
+        @for (player of players(); track player.name) {
+          <div class="player-state">
+            <span>{{ player.name }}</span>
+            @if (player.status === 'alive') { <strong class="state state--alive">Vivo</strong> }
+            @else if (player.status === 'injured') { <strong class="state state--injured">Ferido</strong> }
+            @else { <strong class="state state--dead">Morto</strong> }
+          </div>
+        }
+      </div>
+      <button type="button" class="button button--enemy" (click)="simulateEnemyDestroyed()">Simular inimigo +500</button>
+    </aside>
   </section>
 
   <aside class="controls" aria-label="Controles do tanque">
