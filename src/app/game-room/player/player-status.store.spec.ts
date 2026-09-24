@@ -9,7 +9,10 @@ describe('PlayerStatusSignalStore', () => {
   });
 
   it('should add a player', () => {
-    const player = createPlayer({ id: 'player-1', name: 'Ana' });
+    const player = createPlayer({
+      id: 'player-1',
+      name: 'Ana'
+    });
 
     store.addPlayer(player);
 
@@ -23,10 +26,17 @@ describe('PlayerStatusSignalStore', () => {
   });
 
   it('should update a player position', () => {
-    const player = createPlayer({ id: 'player-1', name: 'Ana' });
+    const player = createPlayer({
+      id: 'player-1',
+      name: 'Ana'
+    });
 
     store.addPlayer(player);
-    store.updatePlayerPosition('player-1', { x: 42, y: 18, rotation: 90 });
+    store.updatePlayerPosition('player-1', {
+      x: 42,
+      y: 18,
+      rotation: 90
+    });
 
     expect(store.players()[0]?.position).toEqual({
       x: 42,
@@ -36,7 +46,10 @@ describe('PlayerStatusSignalStore', () => {
   });
 
   it('should remove a player', () => {
-    const player = createPlayer({ id: 'player-1', name: 'Ana' });
+    const player = createPlayer({
+      id: 'player-1',
+      name: 'Ana'
+    });
 
     store.addPlayer(player);
     store.removePlayer('player-1');
