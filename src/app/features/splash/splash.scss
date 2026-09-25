@@ -1,0 +1,91 @@
+:host {
+  display: block;
+}
+
+.splash {
+  align-items: center;
+  background: #000;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  min-height: 100dvh;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+
+  &::before {
+    background: #000 url('/assets/walppaper.png') center / cover no-repeat;
+    content: '';
+    filter: blur(24px) brightness(0.42);
+    inset: -32px;
+    position: absolute;
+  }
+
+  img {
+    display: block;
+    height: auto;
+    max-height: 92dvh;
+    max-width: 92vw;
+    object-fit: contain;
+    position: relative;
+    width: auto;
+  }
+}
+
+.loading {
+  bottom: clamp(1.25rem, 4vh, 2.5rem);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 800;
+  position: absolute;
+  text-transform: uppercase;
+  width: min(28rem, 82vw);
+  z-index: 1;
+}
+
+.loading__label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.45rem;
+}
+
+.loading__track {
+  background: #080b07;
+  border: 2px solid var(--text);
+  height: 0.85rem;
+  padding: 2px;
+
+  span {
+    animation: load-splash 1.8s linear forwards;
+    background: var(--accent);
+    display: block;
+    height: 100%;
+    transform-origin: left;
+  }
+}
+
+@keyframes load-splash {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.splash:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+@media (max-width: 600px) {
+  .splash img {
+    max-height: 88dvh;
+    max-width: 94vw;
+  }
+
+  .loading {
+    width: min(22rem, 86vw);
+  }
+}

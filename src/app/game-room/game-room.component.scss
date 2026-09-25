@@ -1,0 +1,270 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+  background:
+    linear-gradient(135deg, rgba(18, 47, 65, 0.94), rgba(23, 31, 35, 0.92)),
+    url('/favicon.ico');
+  background-size:
+    cover,
+    2rem;
+  color: #eef5f2;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+
+.room {
+  min-height: 100dvh;
+  padding: 2rem;
+}
+
+.room__stage {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+}
+
+.room__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.room__eyebrow,
+.room__count span,
+.players__heading span,
+.player__stats,
+.player__identity span {
+  color: #a9bbb6;
+}
+
+.room__eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12rem;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  line-height: 1;
+  font-weight: 800;
+}
+
+h2 {
+  font-size: 1rem;
+}
+
+.room__count {
+  display: grid;
+  place-items: center;
+  width: 6rem;
+  min-width: 6rem;
+  aspect-ratio: 1;
+  border: 1px solid rgba(238, 245, 242, 0.22);
+  background: rgba(238, 245, 242, 0.08);
+}
+
+.room__count strong {
+  font-size: 1.9rem;
+  line-height: 1;
+}
+
+.room__count span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.room__content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.arena,
+.players {
+  border: 1px solid rgba(238, 245, 242, 0.16);
+  background: rgba(6, 17, 20, 0.48);
+}
+
+.arena {
+  min-height: 34rem;
+  padding: 1rem;
+}
+
+.arena__grid {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 32rem;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(238, 245, 242, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(238, 245, 242, 0.07) 1px, transparent 1px),
+    radial-gradient(circle at 30% 20%, rgba(73, 146, 108, 0.34), transparent 28%),
+    linear-gradient(135deg, #244134, #12252d 55%, #1c2322);
+  background-size:
+    3rem 3rem,
+    3rem 3rem,
+    cover,
+    cover;
+}
+
+.arena__marker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border: 2px solid rgba(238, 245, 242, 0.88);
+  background: #2f80ed;
+  color: #ffffff;
+  font-weight: 800;
+  box-shadow: 0 0 0 0.35rem rgba(47, 128, 237, 0.18);
+}
+
+.arena__marker--red {
+  background: #d9483b;
+  box-shadow: 0 0 0 0.35rem rgba(217, 72, 59, 0.18);
+}
+
+.arena__marker--neutral {
+  background: #74816f;
+  box-shadow: 0 0 0 0.35rem rgba(116, 129, 111, 0.18);
+}
+
+.players {
+  padding: 1rem;
+}
+
+.players__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.players__heading span {
+  display: grid;
+  place-items: center;
+  min-width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(238, 245, 242, 0.18);
+  font-weight: 700;
+}
+
+.players__list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.player {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(238, 245, 242, 0.12);
+  background: rgba(238, 245, 242, 0.06);
+}
+
+.player__identity {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.player__identity strong,
+.player__identity span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.player__identity span {
+  margin-top: 0.2rem;
+  font-size: 0.85rem;
+}
+
+.player__avatar {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  aspect-ratio: 1;
+  background: #2f80ed;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.player__avatar--red {
+  background: #d9483b;
+}
+
+.player__stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+}
+
+.players__empty {
+  padding: 1rem;
+  border: 1px dashed rgba(238, 245, 242, 0.22);
+  color: #a9bbb6;
+}
+
+@media (max-width: 840px) {
+  .room {
+    padding: 1rem;
+  }
+
+  .room__header {
+    align-items: flex-start;
+  }
+
+  .room__content {
+    grid-template-columns: 1fr;
+  }
+
+  .arena,
+  .arena__grid {
+    min-height: 24rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .room__header {
+    display: grid;
+  }
+
+  .room__count {
+    width: 100%;
+    min-width: 0;
+    aspect-ratio: auto;
+    grid-template-columns: auto auto;
+    justify-content: center;
+    padding: 0.75rem;
+  }
+
+  .player__stats {
+    display: grid;
+  }
+}

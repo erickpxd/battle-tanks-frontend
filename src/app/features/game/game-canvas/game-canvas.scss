@@ -1,0 +1,29 @@
+:host {
+  display: block;
+}
+
+.canvas-frame {
+  aspect-ratio: 4 / 3;
+  background: #11150f;
+  border: 2px solid #4e5b45;
+  margin-inline: auto;
+  max-width: 800px;
+  overflow: auto;
+  scroll-behavior: smooth;
+  scrollbar-color: #6e7b62 #11150f;
+  width: 100%;
+}
+
+canvas {
+  display: block;
+  height: 600px;
+  image-rendering: pixelated;
+  max-width: none;
+  width: 800px;
+}
+
+@media (min-width: 804px) {
+  .canvas-frame {
+    overflow: hidden;
+  }
+}

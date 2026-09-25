@@ -1,0 +1,111 @@
+<main class="waiting-room page-shell">
+  <header class="hero">
+    <h1 class="brand-logo">
+      <img src="assets/logovertical.png" alt="Battle City" width="1983" height="793" />
+    </h1>
+    <div class="room-status">
+      <p>
+        Sala: <strong>{{ savedRoomCode }}</strong> · Comandante:
+        <strong>{{ savedPlayerName }}</strong>
+      </p>
+      <div class="connection" [class]="'connection connection--' + connectionStatus">
+        <span aria-hidden="true"></span>
+        {{ connectionLabel() }}
+      </div>
+    </div>
+  </header>
+
+  @if (connectionError) {
+    <section class="notice" role="alert">
+      <p>{{ connectionError }}</p>
+      <button type="button" class="button button--secondary" (click)="retryConnection()">
+        Tentar conectar novamente
+      </button>
+    </section>
+  }
+
+  <div class="room-grid">
+    <section class="panel players-panel">
+      <div class="players-heading">
+        <div>
+          <p class="eyebrow">Preparação</p>
+          <h2>Sala de espera</h2>
+        </div>
+        <span>{{ players.length }}/4</span>
+      </div>
+
+      @if (players.length === 0) {
+        <p class="empty-state">Aguardando jogadores conectados.</p>
+      } @else {
+        <ul class="player-list">
+          @for (player of players; track player.id) {
+            <li><span aria-hidden="true">◆</span>{{ player.name }}</li>
+          }
+        </ul>
+      }
+
+      <div class="room-actions">
+        <button
+          type="button"
+          class="button game-button"
+          [disabled]="connectionStatus !== 'connected'"
+          (click)="openGame()"
+        >
+          Abrir campo de batalha
+        </button>
+        <button type="button" class="button button--secondary" (click)="leaveRoom()">
+          Sair da sala
+        </button>
+      </div>
+    </section>
+
+    <section class="panel chat-panel">
+      <div class="chat-heading">
+        <div>
+          <p class="eyebrow">Canal da sala</p>
+          <h2>Chat</h2>
+        </div>
+        <span>{{ messages.length }} mensagens</span>
+      </div>
+
+      <div #chatHistory class="chat-history" aria-live="polite">
+        @if (messages.length === 0) {
+          <p class="empty-state">As mensagens confirmadas pelo servidor aparecerão aqui.</p>
+        } @else {
+          @for (message of messages; track message.id ?? $index) {
+            <article class="chat-message">
+              <header>
+                <strong>{{ message.playerName }}</strong>
+                <time [attr.datetime]="message.timestamp">
+                  {{ message.timestamp | date: 'HH:mm' }}
+                </time>
+              </header>
+              <p>{{ message.message }}</p>
+            </article>
+          }
+        }
+      </div>
+
+      <form class="chat-form" (ngSubmit)="sendChat()">
+        <label class="sr-only" for="chat-message">Mensagem</label>
+        <input
+          id="chat-message"
+          name="chatText"
+          type="text"
+          maxlength="250"
+          autocomplete="off"
+          placeholder="Escreva uma mensagem"
+          [disabled]="connectionStatus !== 'connected'"
+          [(ngModel)]="chatText"
+        />
+        <button
+          type="submit"
+          class="button"
+          [disabled]="connectionStatus !== 'connected' || !chatText.trim()"
+        >
+          Enviar
+        </button>
+      </form>
+    </section>
+  </div>
+</main>

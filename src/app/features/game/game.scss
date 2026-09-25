@@ -1,0 +1,173 @@
+:host {
+  display: block;
+}
+
+.game-header {
+  display: grid;
+  justify-items: center;
+  margin-bottom: 1rem;
+  text-align: center;
+
+  h1 {
+    margin: 0;
+    max-width: 28rem;
+    width: min(100%, 28rem);
+
+    img {
+      display: block;
+      height: auto;
+      width: 100%;
+    }
+  }
+
+  p {
+    color: var(--text-muted);
+    margin: 0;
+  }
+}
+
+.match-bar {
+  align-items: center;
+  border-bottom: 2px solid var(--border);
+  border-top: 2px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0;
+  text-align: left;
+  width: 100%;
+}
+
+.header-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.7rem;
+}
+
+.status {
+  background: var(--surface);
+  border-left: 5px solid var(--danger);
+  color: var(--danger-soft);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.4rem 0.65rem;
+  text-transform: uppercase;
+
+  &--connected {
+    border-left-color: var(--success);
+    color: var(--success);
+  }
+}
+
+.battle-panel {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  padding: clamp(0.5rem, 2vw, 1rem);
+}
+
+.game-layout {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(13rem, 16rem);
+}
+
+.player-panel {
+  background: #20281c;
+  border: 4px double #c6b65d;
+  box-shadow: 5px 5px 0 #0c100b;
+  color: #f4eed5;
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+  text-transform: uppercase;
+}
+
+.panel-title {
+  color: #c6b65d;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  margin: 0;
+}
+
+.player-name { color: #fff6bd; overflow-wrap: anywhere; }
+
+.stat-line,
+.player-state {
+  align-items: center;
+  border-bottom: 1px dashed #56604d;
+  display: flex;
+  font-size: 0.78rem;
+  justify-content: space-between;
+  min-height: 1.8rem;
+}
+
+.hearts { color: #e74b3c; font-size: 1rem; letter-spacing: 0.08em; }
+.players-state { display: grid; gap: 0.4rem; }
+.state { font-size: 0.7rem; }
+.state--alive { color: #86cf69; }
+.state--injured { color: #f2bf52; }
+.state--dead { color: #e45f52; }
+
+.button--enemy {
+  background: #a8422c;
+  border-color: #f0b76a;
+  color: #fff8dd;
+  font-size: 0.72rem;
+  padding: 0.6rem;
+}
+
+.controls {
+  align-items: center;
+  background: var(--panel);
+  border: 2px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.2rem;
+  margin-top: 1rem;
+  padding: 0.8rem 1rem;
+
+  strong {
+    color: var(--accent-soft);
+  }
+
+  span {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+  }
+}
+
+kbd {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-bottom-width: 2px;
+  color: var(--text);
+  font-family: inherit;
+  padding: 0.15rem 0.35rem;
+}
+
+.offline-note {
+  color: var(--warning);
+  font-size: 0.8rem;
+  margin: 0.8rem 0 0;
+  text-align: center;
+}
+
+@media (max-width: 650px) {
+  .game-layout { grid-template-columns: 1fr; }
+
+  .player-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .players-state,
+  .button--enemy { grid-column: 1 / -1; }
+
+  .match-bar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .header-actions {
+    justify-content: space-between;
+  }
+}

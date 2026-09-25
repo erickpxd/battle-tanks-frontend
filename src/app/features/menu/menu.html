@@ -1,0 +1,65 @@
+<main class="menu-page page-shell">
+  <header class="menu-header">
+    <h1>
+      <img src="assets/logo-cima.png" alt="Battle City" width="1743" height="982" />
+    </h1>
+  </header>
+
+  <section class="menu-panel" aria-labelledby="menu-title">
+    <h2 id="menu-title">Menu principal</h2>
+
+    <form (ngSubmit)="joinRoom()">
+      <label for="player-name">Nome do jogador</label>
+      <input
+        id="player-name"
+        name="playerName"
+        type="text"
+        maxlength="40"
+        autocomplete="nickname"
+        placeholder="Digite seu nome"
+        [(ngModel)]="playerName"
+      />
+      @if (nameError) {
+        <p class="field-error" role="alert">{{ nameError }}</p>
+      }
+
+      <button
+        type="button"
+        class="button menu-action"
+        [disabled]="!playerName.trim()"
+        (click)="createRoom()"
+      >
+        Criar sala
+      </button>
+
+      <div class="menu-divider" aria-hidden="true"><span>ou</span></div>
+
+      <label for="room-code">Código da sala</label>
+      <div class="room-code-form">
+        <input
+          id="room-code"
+          name="roomCode"
+          type="text"
+          maxlength="8"
+          autocomplete="off"
+          placeholder="Ex.: A7K9P2"
+          [(ngModel)]="roomCode"
+        />
+        <button
+          type="submit"
+          class="button"
+          [disabled]="!playerName.trim() || !roomCode.trim()"
+        >
+          Entrar na sala
+        </button>
+      </div>
+      @if (roomCodeError) {
+        <p class="field-error" role="alert">{{ roomCodeError }}</p>
+      }
+    </form>
+
+    <button type="button" class="button button--secondary menu-action" (click)="openTutorial()">
+      Tutorial
+    </button>
+  </section>
+</main>

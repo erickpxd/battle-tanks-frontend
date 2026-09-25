@@ -1,153 +1,236 @@
-# BattleTanksFrontend
+# Battle City Frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.0.6.
+Frontend standalone em Angular 22 para uma versão inicial multiplayer inspirada em jogos de
+tanques. A aplicação oferece sala de espera, chat, visualização dos jogadores e um campo de batalha
+em Canvas 2D.
 
-## Development server
+> O backend não faz parte deste repositório. Para testar a comunicação em tempo real entre
+> navegadores, é necessário disponibilizar um servidor WebSocket compatível em
+> `ws://localhost:8080/ws`.
 
-To start a local development server, run:
+Sem o servidor, a interface continua disponível e o tanque local pode ser movimentado. Lista de
+jogadores, chat e sincronização entre navegadores dependem do backend.
 
-```bash
-ng serve
-```
+## Requisitos
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+- Angular e Angular CLI `22.0.6`
+- RxJS `7.8.2`
+- TypeScript `6.0.3`
+- Node.js `^22.22.3`, `^24.15.0` ou `>=26.0.0`
+- npm `11.16.0`
 
-## Code scaffolding
+## Instalação e execução
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
+Restaure exatamente as dependências do lockfile:
 
 ```bash
-ng build
+npm ci
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+Inicie o servidor de desenvolvimento:
 
 ```bash
-ng test
+npm start
 ```
 
-## Running end-to-end tests
+A aplicação estará disponível em `http://localhost:4200/`.
 
-For end-to-end (e2e) testing, run:
+Build de produção:
 
 ```bash
-ng e2e
+npm run build
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+Testes unitários em execução única:
 
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
-
-# frontend
-
-
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.com/jala-university1/cohort-3/PT.CSPR-364.GA.T2.26.M1/SB/grupo2/frontend.git
-git branch -M main
-git push -uf origin main
+```bash
+npm test -- --watch=false
 ```
 
-## Integrate with your tools
+## Configuração WebSocket
 
-* [Set up project integrations](https://gitlab.com/jala-university1/cohort-3/PT.CSPR-364.GA.T2.26.M1/SB/grupo2/frontend/-/settings/integrations)
+A URL está centralizada em `src/app/core/config/game.config.ts`:
 
-## Collaborate with your team
+```text
+ws://localhost:8080/ws
+```
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+Em uma implantação HTTPS, utilize um endpoint `wss://` para evitar bloqueio de conteúdo misto.
 
-## Test and Deploy
+O cliente não realiza reconexão automática infinita. Se a conexão falhar, a sala mostra um erro e
+oferece uma tentativa manual. O servidor deve aceitar e enviar objetos JSON com as propriedades
+`type` e `payload`.
 
-Use the built-in continuous integration in GitLab.
+## Protocolo esperado
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+| Evento               | Direção            | Finalidade                  |
+| -------------------- | ------------------ | --------------------------- |
+| `player:join`        | Cliente → servidor | Registrar entrada           |
+| `player:list`        | Servidor → cliente | Atualizar jogadores         |
+| `player:move`        | Ambas              | Sincronizar posição         |
+| `map:tile-destroyed` | Ambas              | Sincronizar bloco destruído |
+| `chat:send`          | Cliente → servidor | Enviar mensagem             |
+| `chat:message`       | Servidor → cliente | Receber mensagem            |
+| `game:state`         | Servidor → cliente | Atualizar estado completo   |
+| `error`              | Servidor → cliente | Informar erro               |
 
-***
+O cliente também reconhece `connection:success`, `player:joined` e `player:left`. Uma resposta
+`connection:success` pode informar `id` ou `playerId`; esse identificador é usado para evitar
+desenhar o jogador local duas vezes.
 
-# Editing this README
+### Entrada na sala
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```json
+{
+  "type": "player:join",
+  "payload": {
+    "name": "Erick"
+  }
+}
+```
 
-## Suggestions for a good README
+Lista retornada pelo servidor:
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+```json
+{
+  "type": "player:list",
+  "payload": [
+    {
+      "id": "player-1",
+      "name": "Erick",
+      "position": { "x": 100, "y": 100, "direction": "up" }
+    }
+  ]
+}
+```
 
-## Name
-Choose a self-explaining name for your project.
+### Movimento
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Cliente ou servidor:
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```json
+{
+  "type": "player:move",
+  "payload": {
+    "x": 100,
+    "y": 80,
+    "direction": "right"
+  }
+}
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+Ao enviar posições de outros jogadores ao cliente, o servidor deve incluir o jogador completo:
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```json
+{
+  "type": "player:move",
+  "payload": {
+    "id": "player-2",
+    "name": "Ana",
+    "position": { "x": 220, "y": 160, "direction": "left" }
+  }
+}
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+### Chat
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+Envio do cliente:
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```json
+{
+  "type": "chat:send",
+  "payload": {
+    "message": "Olá!"
+  }
+}
+```
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+Mensagem confirmada pelo servidor:
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+```json
+{
+  "type": "chat:message",
+  "payload": {
+    "id": "message-1",
+    "playerId": "player-1",
+    "playerName": "Erick",
+    "message": "Olá!",
+    "timestamp": "2026-07-17T19:00:00.000Z"
+  }
+}
+```
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+### Estado completo do jogo
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+```json
+{
+  "type": "game:state",
+  "payload": {
+    "players": [
+      {
+        "id": "player-1",
+        "name": "Erick",
+        "position": { "x": 100, "y": 100, "direction": "up" }
+      }
+    ]
+  }
+}
+```
 
-## License
-For open source projects, say how it is licensed.
+### Erro do servidor
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+```json
+{
+  "type": "error",
+  "payload": {
+    "message": "A sala está cheia."
+  }
+}
+```
+
+Mensagens sem um tipo conhecido ou sem `payload` são ignoradas. Os payloads conhecidos passam por
+validação básica antes de atualizar a interface.
+
+## Controles
+
+| Ação     | Teclas              |
+| -------- | ------------------- |
+| Cima     | `W` ou `ArrowUp`    |
+| Baixo    | `S` ou `ArrowDown`  |
+| Esquerda | `A` ou `ArrowLeft`  |
+| Direita  | `D` ou `ArrowRight` |
+| Disparar | `Espaço`            |
+
+O movimento ocorre célula a célula com animação suave e permanece limitado à grade de 20 × 15.
+O cliente transmite no máximo 20 atualizações de posição por segundo e não envia novos eventos
+quando o tanque está parado.
+
+## Funcionalidades
+
+- arquitetura standalone com rotas lazy;
+- conexão única com RxJS `WebSocketSubject`;
+- estado de conexão e tentativa manual após falha;
+- nome temporário preservado em `sessionStorage`;
+- lista de jogadores derivada do servidor;
+- chat limitado a 250 caracteres, sem inserção de HTML;
+- Canvas 2D responsivo e ajustado ao `devicePixelRatio`;
+- mapa JSON com paredes destrutíveis e indestrutíveis;
+- quatro pontos de nascimento definidos no mapa para os jogadores;
+- tanque local com vida, status e posição mantidos em um SignalStore;
+- movimento e disparos animados por `requestAnimationFrame`;
+- colisões de movimento com paredes e outros tanques;
+- renderização de projéteis isolada no `BulletComponent`;
+- destruição parcial de paredes e animações de explosão baseadas em Angular Signals;
+- renderização do tanque local e dos jogadores remotos;
+- suporte aos eventos de posição e ao estado completo da partida;
+- testes sem abertura de conexão WebSocket real.
+
+## Limitações atuais
+
+- não há servidor WebSocket neste repositório;
+- não há confirmação real de entrada, persistência de sala ou autenticação;
+- o protocolo ainda precisa ser alinhado com a implementação do backend;
+- colisões de projéteis entre tanques e pontuação não foram implementadas;
+- não há reconexão automática nem restauração de partida após perda de conexão;
+- a identificação local depende de o servidor retornar `id` ou `playerId` em
+  `connection:success`.

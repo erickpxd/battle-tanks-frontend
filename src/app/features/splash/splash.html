@@ -1,0 +1,20 @@
+<main
+  class="splash"
+  role="button"
+  tabindex="0"
+  aria-label="Abrir menu do Battle City"
+  (click)="continueToMenu()"
+  (keydown.enter)="continueToMenu()"
+  (keydown.space)="continueToMenu()"
+>
+  <img src="assets/walppaper.png" alt="Battle City" width="1536" height="1024" />
+  <div class="loading" role="status" aria-label="Carregando Battle City">
+    <div class="loading__label">
+      <span>Carregando</span>
+      <span aria-hidden="true">...</span>
+    </div>
+    <div class="loading__track" aria-hidden="true">
+      <span></span>
+    </div>
+  </div>
+</main>
