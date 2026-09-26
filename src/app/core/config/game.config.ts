@@ -1,6 +1,8 @@
 export const GAME_CONFIG = {
-  // Em produção, quando a aplicação usar HTTPS, o servidor também deverá usar wss://.
-  websocketUrl: 'ws://localhost:8080/ws',
+  apiUrl: 'http://localhost:5049',
+  signalRHubUrl: 'http://localhost:5049/hubs/game',
   playerNameStorageKey: 'battle-city-player-name',
   roomCodeStorageKey: 'battle-city-room-code',
+  tokenStorageKey: 'battle-tanks-auth-token',
+  playerIdStorageKey: 'battle-tanks-player-id',
 } as const;

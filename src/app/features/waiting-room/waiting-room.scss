@@ -19,7 +19,6 @@
       width: 100%;
     }
   }
-
 }
 
 .room-status {
@@ -174,6 +173,59 @@
   display: grid;
   gap: 0.7rem;
   margin-top: 1.4rem;
+}
+
+.api-rooms-section {
+  border-top: 1px dashed var(--border);
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+}
+
+.api-rooms-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+
+  h3 {
+    font-size: 0.85rem;
+    margin: 0;
+    text-transform: uppercase;
+  }
+}
+
+.button--sm {
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.automatic-update {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.api-rooms-list {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    display: flex;
+    font-size: 0.78rem;
+    justify-content: space-between;
+    padding: 0.4rem 0.6rem;
+
+    &.active-room {
+      border-color: var(--accent);
+      color: var(--accent-soft);
+    }
+  }
 }
 
 .chat-heading {

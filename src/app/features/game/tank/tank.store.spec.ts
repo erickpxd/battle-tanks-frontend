@@ -44,4 +44,15 @@ describe('TankSignalStore', () => {
     expect(store.moveTo(2, 1)).toBe(false);
     expect(store.tank().position).toEqual({ x: 1, y: 1, direction: 'right' });
   });
+
+  it('should apply an authoritative health value from the server', () => {
+    store.setHealth(35);
+
+    expect(store.tank().health).toBe(35);
+    expect(store.tank().status).toBe('active');
+
+    store.setHealth(0);
+
+    expect(store.tank().status).toBe('destroyed');
+  });
 });

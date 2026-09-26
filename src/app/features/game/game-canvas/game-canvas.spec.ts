@@ -1,9 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { BehaviorSubject, Subject } from 'rxjs';
+import { Store, provideStore } from '@ngrx/store';
 
-import { GameState } from '../../../core/models/game-state.model';
-import { Player } from '../../../core/models/player.model';
 import { GameService } from '../../../core/services/game.service';
+import { GameActions } from '../../../core/store/game.actions';
+import { gameFeatureKey, gameReducer } from '../../../core/store/game.reducer';
 import { TerrainType } from '../map/terrain-type';
 import { GameCanvas } from './game-canvas';
 
@@ -14,24 +14,12 @@ describe('GameCanvas', () => {
   let nextFrameId: number;
   let frameTime: number;
   let removeEventListener: ReturnType<typeof vi.spyOn>;
+  let store: Store;
 
-  const playerMoves = new Subject<Player>();
-  const gameStates = new Subject<GameState>();
-  const players = new BehaviorSubject<Player[]>([]);
-  const mapTileChanges = new Subject<{ column: number; row: number }>();
-  const localPlayerId = new BehaviorSubject<string | null>(null);
   const gameService = {
     sendPlayerMove: vi.fn(),
+    sendPlayerHit: vi.fn(),
     sendMapTileDestroyed: vi.fn(),
-    onPlayerMove: vi.fn((callback: (player: Player) => void) => playerMoves.subscribe(callback)),
-    onGameState: vi.fn((callback: (state: GameState) => void) => gameStates.subscribe(callback)),
-    onPlayersUpdated: vi.fn((callback: (updatedPlayers: Player[]) => void) =>
-      players.subscribe(callback),
-    ),
-    onMapTileDestroyed: vi.fn((callback: (change: { column: number; row: number }) => void) =>
-      mapTileChanges.subscribe(callback),
-    ),
-    localPlayerId$: localPlayerId.asObservable(),
   };
 
   const context = {
@@ -63,8 +51,6 @@ describe('GameCanvas', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    localPlayerId.next(null);
-    players.next([]);
     frameCallbacks = new Map();
     nextFrameId = 1;
     frameTime = performance.now() + 60;
@@ -89,9 +75,13 @@ describe('GameCanvas', () => {
 
     await TestBed.configureTestingModule({
       imports: [GameCanvas],
-      providers: [{ provide: GameService, useValue: gameService }],
+      providers: [
+        provideStore({ [gameFeatureKey]: gameReducer }),
+        { provide: GameService, useValue: gameService },
+      ],
     }).compileComponents();
 
+    store = TestBed.inject(Store);
     fixture = TestBed.createComponent(GameCanvas);
     component = fixture.componentInstance;
     fixture.detectChanges();
@@ -163,11 +153,15 @@ describe('GameCanvas', () => {
 
   it('should not enter a cell occupied by another tank', () => {
     const { x, y } = component.localTank.position;
-    playerMoves.next({
-      id: 'remote-player',
-      name: 'Ana',
-      position: { x: x + 1, y, direction: 'left' },
-    });
+    store.dispatch(
+      GameActions.playerMoved({
+        player: {
+          id: 'remote-player',
+          name: 'Ana',
+          position: { x: x + 1, y, direction: 'left' },
+        },
+      }),
+    );
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
 
@@ -177,19 +171,23 @@ describe('GameCanvas', () => {
   });
 
   it('should select the local spawn from the shared player order', () => {
-    localPlayerId.next('local-player');
-    players.next([
-      {
-        id: 'remote-player',
-        name: 'Ana',
-        position: { x: 1, y: 1, direction: 'right' },
-      },
-      {
-        id: 'local-player',
-        name: 'Bia',
-        position: { x: 18, y: 1, direction: 'left' },
-      },
-    ]);
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'remote-player',
+            name: 'Ana',
+            position: { x: 1, y: 1, direction: 'right' },
+          },
+          {
+            id: 'local-player',
+            name: 'Bia',
+            position: { x: 18, y: 1, direction: 'left' },
+          },
+        ],
+      }),
+    );
 
     expect(component.localTank.player).toBe(2);
     expect(component.localTank.position).toEqual({ x: 18, y: 1, direction: 'left' });
@@ -246,6 +244,59 @@ describe('GameCanvas', () => {
     }
     expect(gameService.sendMapTileDestroyed).toHaveBeenCalledTimes(3);
     expect(component.explosionStore.explosions()).toHaveLength(1);
+  });
+
+  it('should hit a remote tank when the projectile crosses its bounds', () => {
+    const { x, y } = component.localTank.position;
+    store.dispatch(
+      GameActions.playerMoved({
+        player: {
+          id: 'remote-player',
+          name: 'Ana',
+          position: { x: x + 1, y, direction: 'left' },
+        },
+      }),
+    );
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    runNextFrame();
+
+    expect(gameService.sendPlayerHit).toHaveBeenCalledWith('remote-player', 25);
+    expect(component.explosionStore.explosions()).toHaveLength(1);
+  });
+
+  it('should apply server-confirmed damage to the local tank', () => {
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'local-player',
+            name: 'Erick',
+            position: { x: 1, y: 1, direction: 'right' },
+            health: 100,
+            maxHealth: 100,
+            status: 'active',
+          },
+        ],
+      }),
+    );
+
+    store.dispatch(
+      GameActions.playerHit({
+        player: {
+          id: 'local-player',
+          name: 'Erick',
+          position: { x: 1, y: 1, direction: 'right' },
+          health: 75,
+          maxHealth: 100,
+          status: 'active',
+        },
+      }),
+    );
+
+    expect(component.localTank.health).toBe(75);
   });
 
   it('should destroy a horizontal strip when a vertical shot hits a wall', () => {
