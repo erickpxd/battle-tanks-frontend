@@ -31,6 +31,7 @@ import {
 } from '../../../core/store/game.selectors';
 import { BulletComponent, BulletState } from '../bullet/bullet.component';
 import { ExplosionSignalStore } from '../explosion/explosion.store';
+import { GameScoreSignalStore } from '../game-score.store';
 import { BattleMapSignalStore } from '../map/battle-map.store';
 import { MapVisualTheme } from '../map/map-catalog';
 import { TerrainType, terrainDefinition } from '../map/terrain-type';
@@ -66,7 +67,6 @@ const KEY_DIRECTIONS: Readonly<Record<string, PlayerDirection>> = {
 @Component({
   selector: 'app-game-canvas',
   imports: [BulletComponent],
-  providers: [BattleMapSignalStore, TankSignalStore, ExplosionSignalStore],
   templateUrl: './game-canvas.html',
   styleUrl: './game-canvas.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -81,6 +81,7 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
   private readonly mapStore = inject(BattleMapSignalStore);
   readonly tankStore = inject(TankSignalStore);
   readonly explosionStore = inject(ExplosionSignalStore);
+  private readonly scoreStore = inject(GameScoreSignalStore);
 
   readonly logicalWidth = 800;
   readonly logicalHeight = 600;
@@ -353,6 +354,16 @@ export class GameCanvas implements AfterViewInit, OnDestroy {
       this.gameService.sendPlayerShot(direction);
     }
     return true;
+  }
+
+  simulateEnemyDestroyed(): void {
+    this.scoreStore.registerEnemyDestroyed();
+    this.explosionStore.start({
+      x: this.logicalWidth / 2,
+      y: this.logicalHeight / 2,
+      startedAt: performance.now(),
+      destructive: true,
+    });
   }
 
   private moveLocalTank(direction: PlayerDirection): void {
