@@ -1,13 +1,10 @@
-import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { Store, provideStore } from '@ngrx/store';
-import { of } from 'rxjs';
 
 import { GAME_CONFIG } from '../../core/config/game.config';
 import { GameService } from '../../core/services/game.service';
-import { RoomApiService } from '../../core/services/room-api.service';
+import { SoundEffectsService } from '../../core/services/sound-effects.service';
 import { GameActions } from '../../core/store/game.actions';
 import { gameFeatureKey, gameReducer } from '../../core/store/game.reducer';
 import { WaitingRoom } from './waiting-room';
@@ -19,25 +16,21 @@ describe('WaitingRoom', () => {
     disconnect: vi.fn(),
     joinRoom: vi.fn(),
     sendChatMessage: vi.fn(),
-  };
-
-  const roomApiService = {
-    getRooms: vi.fn(() => of([])),
+    setPlayerReady: vi.fn(),
   };
 
   beforeEach(async () => {
     sessionStorage.clear();
+    localStorage.clear();
     vi.clearAllMocks();
 
     await TestBed.configureTestingModule({
       imports: [WaitingRoom],
       providers: [
         provideRouter([]),
-        provideHttpClient(),
-        provideHttpClientTesting(),
         provideStore({ [gameFeatureKey]: gameReducer }),
         { provide: GameService, useValue: gameService },
-        { provide: RoomApiService, useValue: roomApiService },
+        { provide: SoundEffectsService, useValue: { unlock: vi.fn() } },
       ],
     }).compileComponents();
     store = TestBed.inject(Store);
@@ -67,23 +60,21 @@ describe('WaitingRoom', () => {
     expect(fixture.nativeElement.querySelector('.chat-panel')).not.toBeNull();
   });
 
-  it('should only open the game after connecting', () => {
+  it('should only change readiness after connecting', () => {
     sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
     sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, 'ABC123');
-    const router = TestBed.inject(Router);
-    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const fixture = TestBed.createComponent(WaitingRoom);
     fixture.detectChanges();
 
-    fixture.componentInstance.openGame();
-    expect(navigate).not.toHaveBeenCalledWith(['/game']);
+    fixture.componentInstance.toggleReady();
+    expect(gameService.setPlayerReady).not.toHaveBeenCalled();
 
     store.dispatch(GameActions.connectionStatusChanged({ status: 'connected' }));
-    fixture.componentInstance.openGame();
-    expect(navigate).toHaveBeenCalledWith(['/game']);
+    fixture.componentInstance.toggleReady();
+    expect(gameService.setPlayerReady).toHaveBeenCalledWith(true);
   });
 
-  it('should clear the identity when leaving the room', () => {
+  it('should preserve the account name when leaving the room', () => {
     sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
     sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, 'ABC123');
     const router = TestBed.inject(Router);
@@ -94,9 +85,23 @@ describe('WaitingRoom', () => {
     fixture.componentInstance.leaveRoom();
 
     expect(gameService.disconnect).toHaveBeenCalledOnce();
-    expect(sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey)).toBeNull();
+    expect(sessionStorage.getItem(GAME_CONFIG.playerNameStorageKey)).toBe('Erick');
     expect(sessionStorage.getItem(GAME_CONFIG.roomCodeStorageKey)).toBeNull();
     expect(navigate).toHaveBeenCalledWith(['/menu']);
+  });
+
+  it('should open the game automatically when the server starts the match', async () => {
+    sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    sessionStorage.setItem(GAME_CONFIG.roomCodeStorageKey, 'ABC123');
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(WaitingRoom);
+    fixture.detectChanges();
+
+    store.dispatch(GameActions.gameStarted());
+    await fixture.whenStable();
+
+    expect(navigate).toHaveBeenCalledWith(['/game']);
   });
 
   it('should render chat messages received asynchronously without another click', async () => {

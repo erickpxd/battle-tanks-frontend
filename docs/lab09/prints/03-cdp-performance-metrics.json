@@ -1,0 +1,11 @@
+{
+  "source": "CDP Performance.getMetrics during /tutorial after WASD+Space",
+  "JSHeapUsedSize_MB": 6.26,
+  "JSHeapTotalSize_MB": 7.39,
+  "JSEventListeners": 15,
+  "Nodes": 92,
+  "ScriptDuration_s": 0.614333,
+  "TaskDuration_s": 1.241733,
+  "LayoutCount": 0,
+  "RecalcStyleCount": 0
+}

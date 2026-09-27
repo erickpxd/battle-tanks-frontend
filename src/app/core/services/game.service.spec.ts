@@ -5,6 +5,7 @@ import { provideStore } from '@ngrx/store';
 import { GAME_CONFIG } from '../config/game.config';
 import { Player } from '../models/player.model';
 import { gameFeatureKey, gameReducer } from '../store/game.reducer';
+import { MqttGameService } from './mqtt-game.service';
 import {
   GameService,
   REALTIME_HUB_CONNECTION_FACTORY,
@@ -87,6 +88,10 @@ describe('GameService', () => {
       providers: [
         provideStore({ [gameFeatureKey]: gameReducer }),
         { provide: REALTIME_HUB_CONNECTION_FACTORY, useValue: connectionFactory },
+        {
+          provide: MqttGameService,
+          useValue: { joinRoom: vi.fn(), leaveRoom: vi.fn() },
+        },
       ],
     });
     service = TestBed.inject(GameService);
@@ -122,6 +127,10 @@ describe('GameService', () => {
 
     service.sendPlayerMove({ x: 8, y: 6, direction: 'right' });
     service.sendPlayerHit('target-player', 25);
+    service.collectPowerUp('power-up-1');
+    service.setPlayerReady(true);
+    service.sendPlayerShot('right');
+    service.surrender();
     service.sendChatMessage('  Olá, tanque!  ');
 
     expect(
@@ -133,6 +142,24 @@ describe('GameService', () => {
     expect(
       connection.invocations.find(({ methodName }) => methodName === 'SendChatMessage')?.args[0],
     ).toEqual(expect.objectContaining({ message: 'Olá, tanque!' }));
+    expect(
+      connection.invocations.find(({ methodName }) => methodName === 'CollectPowerUp')?.args[0],
+    ).toEqual(expect.objectContaining({ powerUpId: 'power-up-1' }));
+    expect(
+      connection.invocations.find(({ methodName }) => methodName === 'SetPlayerReady')?.args[0],
+    ).toEqual(expect.objectContaining({ ready: true }));
+    expect(
+      connection.invocations.find(({ methodName }) => methodName === 'FireShot')?.args[0],
+    ).toEqual(expect.objectContaining({ direction: 'right' }));
+    expect(connection.invocations.some(({ methodName }) => methodName === 'Surrender')).toBe(true);
+  });
+
+  it('should persist the server-authoritative match start', () => {
+    service.connect();
+
+    connection.emit('ReceiveGameStarted', undefined);
+
+    expect(sessionStorage.getItem(GAME_CONFIG.gameStartedStorageKey)).toBe('true');
   });
 
   it('should expose received movements only after the SignalR handler dispatches them', () => {
@@ -169,5 +196,8 @@ describe('GameService', () => {
     expect(connection.handlerCount('ReceivePlayerMove')).toBe(1);
     expect(connection.handlerCount('ReceivePlayerHit')).toBe(1);
     expect(connection.handlerCount('ReceiveChatMessage')).toBe(1);
+    expect(connection.handlerCount('ReceiveGameStarted')).toBe(1);
+    expect(connection.handlerCount('ReceivePlayerShot')).toBe(1);
+    expect(connection.handlerCount('ReceiveGameEnded')).toBe(1);
   });
 });

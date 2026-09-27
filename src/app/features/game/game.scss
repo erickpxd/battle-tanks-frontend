@@ -2,6 +2,34 @@
   display: block;
 }
 
+.game-result {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgb(3 8 12 / 82%);
+  backdrop-filter: blur(5px);
+}
+
+.game-result__card {
+  width: min(30rem, 100%);
+  padding: 2.25rem;
+  border: 3px solid var(--color-accent, #f4cf47);
+  border-radius: 0.75rem;
+  color: #fff;
+  text-align: center;
+  background: #121b20;
+  box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 60%);
+}
+
+.game-result__card h2 {
+  margin: 0 0 1rem;
+  color: #f4cf47;
+  font-size: clamp(2.5rem, 9vw, 5rem);
+}
+
 .game-header {
   display: grid;
   justify-items: center;
@@ -56,6 +84,24 @@
   &--connected {
     border-left-color: var(--success);
     color: var(--success);
+  }
+}
+
+.sound-toggle {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.4rem 0.65rem;
+  text-transform: uppercase;
+
+  &:focus-visible,
+  &:hover {
+    border-color: var(--accent);
+    color: var(--accent-soft);
   }
 }
 
@@ -151,6 +197,21 @@ kbd {
   font-size: 0.8rem;
   margin: 0.8rem 0 0;
   text-align: center;
+}
+
+.mqtt-event,
+.game-ended {
+  border-left: 5px solid var(--success);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.8rem;
+  margin: 0.8rem 0 0;
+  padding: 0.65rem 0.8rem;
+}
+
+.game-ended {
+  border-left-color: var(--warning);
+  color: var(--warning);
 }
 
 @media (max-width: 650px) {

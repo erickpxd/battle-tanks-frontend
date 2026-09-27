@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 
 export const EXPLOSION_DURATION_MS = 320;
 
@@ -26,6 +26,12 @@ export class ExplosionSignalStore {
   private nextExplosionId = 1;
 
   readonly explosions = this.explosionState.asReadonly();
+  /** Avoids templates/consumers re-deriving length on every read. */
+  readonly explosionCount = computed(() => this.explosionState().length);
+  readonly hasExplosions = computed(() => this.explosionCount() > 0);
+  readonly destructiveExplosionCount = computed(
+    () => this.explosionState().filter((explosion) => explosion.destructive).length,
+  );
 
   start(explosion: NewExplosion): string {
     const id = `explosion-${this.nextExplosionId++}`;

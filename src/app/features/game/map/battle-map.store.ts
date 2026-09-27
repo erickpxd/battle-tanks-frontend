@@ -1,15 +1,17 @@
 import { computed, Injectable, signal } from '@angular/core';
 
 import { MapTileChange } from '../../../core/models/map-tile-change.model';
-import defaultMapSource from './default-map.json';
 import { BattleMap } from './battle-map';
+import { getSelectedMapDefinition } from './map-catalog';
 import { TerrainType } from './terrain-type';
 
 @Injectable({
   providedIn: 'root',
 })
 export class BattleMapSignalStore {
-  readonly battleMap = new BattleMap(defaultMapSource.tiles);
+  readonly definition = getSelectedMapDefinition();
+  readonly battleMap = new BattleMap(this.definition.source.tiles);
+  readonly theme = this.definition.theme;
 
   private readonly revision = signal(0);
 
@@ -21,6 +23,12 @@ export class BattleMapSignalStore {
   private readonly destroyedPartsState = signal(0);
 
   readonly destroyedParts = this.destroyedPartsState.asReadonly();
+  readonly hasDestroyedParts = computed(() => this.destroyedPartsState() > 0);
+  readonly mapRevision = computed(() => this.revision());
+  readonly tileCount = computed(() => {
+    const matrix = this.tiles();
+    return matrix.reduce((sum, row) => sum + row.length, 0);
+  });
 
   destroyTile(column: number, row: number): boolean {
     return this.destroyTiles([{ column, row }]).length === 1;

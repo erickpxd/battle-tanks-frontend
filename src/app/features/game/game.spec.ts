@@ -1,9 +1,13 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { provideStore } from '@ngrx/store';
 import { BehaviorSubject } from 'rxjs';
 
 import { GAME_CONFIG } from '../../core/config/game.config';
 import { ConnectionStatus, GameService } from '../../core/services/game.service';
+import { SoundEffectsService } from '../../core/services/sound-effects.service';
+import { gameFeatureKey, gameReducer } from '../../core/store/game.reducer';
 import { Game } from './game';
 
 describe('Game', () => {
@@ -12,6 +16,15 @@ describe('Game', () => {
     connectionStatus$: status.asObservable(),
     connect: vi.fn(),
     joinRoom: vi.fn(),
+    surrender: vi.fn(),
+    disconnect: vi.fn(),
+  };
+  const soundEffects = {
+    enabled: signal(true).asReadonly(),
+    toggle: vi.fn(),
+    playGameOver: vi.fn(),
+    startMusic: vi.fn(),
+    stopMusic: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -20,7 +33,12 @@ describe('Game', () => {
     vi.clearAllMocks();
     await TestBed.configureTestingModule({
       imports: [Game],
-      providers: [provideRouter([]), { provide: GameService, useValue: gameService }],
+      providers: [
+        provideRouter([]),
+        provideStore({ [gameFeatureKey]: gameReducer }),
+        { provide: GameService, useValue: gameService },
+        { provide: SoundEffectsService, useValue: soundEffects },
+      ],
     })
       .overrideComponent(Game, {
         set: {
@@ -33,6 +51,7 @@ describe('Game', () => {
 
   it('should create with a saved player and reuse the shared connection', () => {
     sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    sessionStorage.setItem(GAME_CONFIG.gameStartedStorageKey, 'true');
     const fixture = TestBed.createComponent(Game);
     fixture.detectChanges();
 
@@ -42,6 +61,7 @@ describe('Game', () => {
   });
 
   it('should redirect to the menu without a saved player', () => {
+    sessionStorage.setItem(GAME_CONFIG.gameStartedStorageKey, 'true');
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const fixture = TestBed.createComponent(Game);
@@ -49,6 +69,18 @@ describe('Game', () => {
     fixture.detectChanges();
 
     expect(navigate).toHaveBeenCalledWith(['/menu']);
+    expect(gameService.connect).not.toHaveBeenCalled();
+  });
+
+  it('should return to the waiting room before the server starts the match', () => {
+    sessionStorage.setItem(GAME_CONFIG.playerNameStorageKey, 'Erick');
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(Game);
+
+    fixture.detectChanges();
+
+    expect(navigate).toHaveBeenCalledWith(['/waiting-room']);
     expect(gameService.connect).not.toHaveBeenCalled();
   });
 

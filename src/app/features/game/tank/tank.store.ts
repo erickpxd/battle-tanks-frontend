@@ -2,7 +2,7 @@ import { computed, Injectable, signal } from '@angular/core';
 
 import { Tank, TankSpawn } from '../../../core/models/tank.model';
 import { PlayerDirection } from '../../../core/models/position.model';
-import defaultMapSource from '../map/default-map.json';
+import { getSelectedMapDefinition } from '../map/map-catalog';
 
 interface TankState {
   readonly tank: Tank;
@@ -15,7 +15,9 @@ const DIRECTIONS: ReadonlySet<string> = new Set(['up', 'right', 'down', 'left'])
   providedIn: 'root',
 })
 export class TankSignalStore {
-  readonly spawns: ReadonlyArray<TankSpawn> = Object.freeze(defaultMapSource.spawns.map(readSpawn));
+  readonly spawns: ReadonlyArray<TankSpawn> = Object.freeze(
+    getSelectedMapDefinition().source.spawns.map(readSpawn),
+  );
 
   private readonly state = signal<TankState>({
     tank: createTank(this.spawns[0]),
@@ -23,7 +25,9 @@ export class TankSignalStore {
 
   readonly tank = computed(() => this.state().tank);
   readonly isActive = computed(() => this.tank().status === 'active');
+  readonly isDestroyed = computed(() => this.tank().status === 'destroyed');
   readonly healthPercentage = computed(() => this.tank().health / this.tank().maxHealth);
+  readonly healthLabel = computed(() => `${Math.round(this.healthPercentage() * 100)}%`);
 
   selectSpawn(player: number): boolean {
     const spawn = this.spawns.find((candidate) => candidate.player === player);

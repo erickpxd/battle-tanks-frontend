@@ -1,0 +1,34 @@
+<main class="ranking-page page-shell">
+  <section class="ranking-panel" aria-labelledby="ranking-title">
+    <h1 id="ranking-title">Classificação</h1>
+    <p class="ranking-subtitle">Top 10 global (Redis / API)</p>
+
+    <div class="ranking-actions">
+      <button type="button" class="button button--secondary button--sm" (click)="reload()" [disabled]="isLoading()">
+        {{ isLoading() ? 'Atualizando…' : 'Atualizar' }}
+      </button>
+      <a routerLink="/menu" class="button button--sm">Voltar ao menu</a>
+    </div>
+
+    @if (errorMessage(); as error) {
+      <p class="field-error" role="alert">{{ error }}</p>
+    }
+
+    @if (isLoading() && !hasEntries()) {
+      <p>Carregando ranking…</p>
+    } @else if (hasEntries()) {
+      <p class="ranking-meta">Maior pontuação: <strong>{{ topScore() }}</strong></p>
+      <ol class="ranking-list">
+        @for (entry of entries(); track entry.playerId) {
+          <li>
+            <span class="rank">#{{ entry.rank }}</span>
+            <span class="name">{{ entry.playerName }}</span>
+            <span class="score">{{ entry.totalScore }}</span>
+          </li>
+        }
+      </ol>
+    } @else {
+      <p>Nenhum jogador no ranking ainda.</p>
+    }
+  </section>
+</main>

@@ -5,16 +5,28 @@
     </h1>
     <div class="match-bar">
       <p>
-        {{ isTutorial ? 'Modo:' : 'Comandante:' }} <strong>{{ playerName }}</strong>
+        {{ isTutorial ? 'Modo:' : 'Comandante:' }} <strong>{{ playerName }}</strong> · Mapa:
+        <strong>{{ mapName }}</strong>
       </p>
       <div class="header-actions">
+        <button
+          type="button"
+          class="sound-toggle"
+          [attr.aria-pressed]="soundEnabled()"
+          (click)="toggleSound()"
+        >
+          Som: {{ soundEnabled() ? 'ligado' : 'desligado' }}
+        </button>
         @if (!isTutorial) {
           <span class="status" [class.status--connected]="connectionStatus === 'connected'">
             {{ connectionLabel() }}
           </span>
+          <span class="status" [class.status--connected]="mqttConnectionStatus === 'connected'">
+            {{ mqttConnectionLabel() }}
+          </span>
         }
-        <button type="button" class="button button--secondary" (click)="backToWaitingRoom()">
-          {{ isTutorial ? 'Voltar ao menu' : 'Voltar à sala' }}
+        <button type="button" class="button button--secondary" (click)="leaveMatch()">
+          {{ isTutorial ? 'Voltar ao menu' : 'Se render' }}
         </button>
       </div>
     </div>
@@ -51,6 +63,20 @@
       <button type="button" class="button button--enemy" (click)="simulateEnemyDestroyed()">Simular inimigo +500</button>
     </aside>
   </section>
+
+  <!-- EVIDÊNCIA LAB 06: capturar esta notificação e a action correspondente no NgRx DevTools. -->
+  @if (latestGameEventLabel) {
+    <p class="mqtt-event" role="status">{{ latestGameEventLabel }}</p>
+  }
+  @if (resultTitle) {
+    <section class="game-result" role="alert" aria-live="assertive">
+      <div class="game-result__card">
+        <h2>{{ resultTitle }}</h2>
+        <p>{{ gameEndedMessage }}</p>
+        <button type="button" class="button" (click)="goToMenu()">Ir para o menu</button>
+      </div>
+    </section>
+  }
 
   <aside class="controls" aria-label="Controles do tanque">
     <strong>Controles</strong>

@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Store, provideStore } from '@ngrx/store';
 
 import { GameService } from '../../../core/services/game.service';
+import { SoundEffectsService } from '../../../core/services/sound-effects.service';
 import { GameActions } from '../../../core/store/game.actions';
 import { gameFeatureKey, gameReducer } from '../../../core/store/game.reducer';
 import { TerrainType } from '../map/terrain-type';
@@ -20,6 +21,17 @@ describe('GameCanvas', () => {
     sendPlayerMove: vi.fn(),
     sendPlayerHit: vi.fn(),
     sendMapTileDestroyed: vi.fn(),
+    collectPowerUp: vi.fn(),
+    sendPlayerShot: vi.fn(),
+  };
+
+  const soundEffects = {
+    unlock: vi.fn(),
+    playMove: vi.fn(),
+    playShot: vi.fn(),
+    playImpact: vi.fn(),
+    playPlayerHit: vi.fn(),
+    playPowerUp: vi.fn(),
   };
 
   const context = {
@@ -78,6 +90,7 @@ describe('GameCanvas', () => {
       providers: [
         provideStore({ [gameFeatureKey]: gameReducer }),
         { provide: GameService, useValue: gameService },
+        { provide: SoundEffectsService, useValue: soundEffects },
       ],
     }).compileComponents();
 
@@ -102,6 +115,55 @@ describe('GameCanvas', () => {
     expect(component.battleMap.expandedRows).toBe(45);
   });
 
+  it('should render and play the sound of a remote shot received from SignalR', () => {
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playerShot({
+        shot: {
+          playerId: 'remote-player',
+          position: { x: 5, y: 5, direction: 'left' },
+          eventId: 'shot-1',
+          clientSentAtUnixMs: Date.now(),
+          serverReceivedAt: new Date().toISOString(),
+        },
+      }),
+    );
+
+    expect(soundEffects.playShot).toHaveBeenCalledWith(false);
+  });
+
+  it('should stop a remote projectile when it reaches the local tank', () => {
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'local-player',
+            name: 'Erick',
+            position: { x: 1, y: 1, direction: 'right' },
+          },
+        ],
+      }),
+    );
+    store.dispatch(
+      GameActions.playerShot({
+        shot: {
+          playerId: 'remote-player',
+          position: { x: 2, y: 1, direction: 'left' },
+          eventId: 'shot-hit-local',
+          clientSentAtUnixMs: Date.now(),
+          serverReceivedAt: new Date().toISOString(),
+        },
+      }),
+    );
+
+    runNextFrame();
+
+    expect((component as unknown as { projectiles: unknown[] }).projectiles).toHaveLength(0);
+    expect(component.explosionStore.explosions()).toHaveLength(1);
+    expect(soundEffects.playImpact).toHaveBeenCalledWith(true);
+  });
+
   it('should animate before completing a one-cell movement', () => {
     const initialX = component.localTank.position.x;
     const initialY = component.localTank.position.y;
@@ -121,6 +183,7 @@ describe('GameCanvas', () => {
 
     expect(component.localTank.position.x).toBe(initialX + 1);
     expect(component.localTank.position.y).toBe(initialY);
+    expect(soundEffects.playMove).toHaveBeenCalledOnce();
   });
 
   it('should keep the local tank inside the 20 by 15 grid', () => {
@@ -263,6 +326,8 @@ describe('GameCanvas', () => {
     runNextFrame();
 
     expect(gameService.sendPlayerHit).toHaveBeenCalledWith('remote-player', 25);
+    expect(soundEffects.playShot).toHaveBeenCalledWith(false);
+    expect(soundEffects.playImpact).toHaveBeenCalledWith(true);
     expect(component.explosionStore.explosions()).toHaveLength(1);
   });
 
@@ -297,6 +362,96 @@ describe('GameCanvas', () => {
     );
 
     expect(component.localTank.health).toBe(75);
+  });
+
+  it('should collect a power-up after entering its cell', () => {
+    const { x, y } = component.localTank.position;
+    store.dispatch(
+      GameActions.powerUpsUpdated({
+        powerUps: [
+          {
+            id: 'power-up-1',
+            type: 'repair-kit',
+            x: x + 1,
+            y,
+            expiresAt: new Date(Date.now() + 10_000).toISOString(),
+          },
+        ],
+      }),
+    );
+
+    prepareAnimationClock();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    finishMovement();
+
+    expect(gameService.collectPowerUp).toHaveBeenCalledWith('power-up-1');
+    expect(soundEffects.playPowerUp).toHaveBeenCalledWith('repair-kit');
+  });
+
+  it('should fire a 50 damage projectile while double damage is active', () => {
+    const { x, y } = component.localTank.position;
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'local-player',
+            name: 'Erick',
+            position: { x, y, direction: 'right' },
+            doubleDamageExpiresAt: new Date(Date.now() + 10_000).toISOString(),
+          },
+          {
+            id: 'remote-player',
+            name: 'Ana',
+            position: { x: x + 1, y, direction: 'left' },
+          },
+        ],
+      }),
+    );
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    runNextFrame();
+
+    expect(gameService.sendPlayerHit).toHaveBeenCalledWith('remote-player', 50);
+  });
+
+  it('should reduce movement duration while speed boost is active', () => {
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'local-player',
+            name: 'Erick',
+            position: { x: 1, y: 1, direction: 'right' },
+            speedBoostExpiresAt: new Date(Date.now() + 10_000).toISOString(),
+          },
+        ],
+      }),
+    );
+
+    expect(component.movementDurationMs).toBe(105);
+  });
+
+  it('should use a shorter reload while machine gun is active', () => {
+    store.dispatch(GameActions.localPlayerIdentified({ playerId: 'local-player' }));
+    store.dispatch(
+      GameActions.playersUpdated({
+        players: [
+          {
+            id: 'local-player',
+            name: 'Erick',
+            position: { x: 1, y: 1, direction: 'right' },
+            machineGunExpiresAt: new Date(Date.now() + 10_000).toISOString(),
+          },
+        ],
+      }),
+    );
+
+    expect(component.fireLocalShot(1_000)).toBe(true);
+    expect(component.fireLocalShot(1_149)).toBe(false);
+    expect(component.fireLocalShot(1_150)).toBe(true);
   });
 
   it('should destroy a horizontal strip when a vertical shot hits a wall', () => {

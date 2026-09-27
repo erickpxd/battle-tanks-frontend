@@ -3,7 +3,14 @@ import { createReducer, on } from '@ngrx/store';
 import { ChatMessage } from '../models/chat-message.model';
 import { ConnectionStatus } from '../models/connection-status.model';
 import { MapTileChange } from '../models/map-tile-change.model';
+import {
+  GameEndedEventData,
+  GameEventEnvelope,
+  MqttConnectionStatus,
+} from '../models/mqtt-game-event.model';
 import { Player } from '../models/player.model';
+import { PowerUp } from '../models/power-up.model';
+import { RealtimeShot } from '../models/realtime-event.model';
 import { GameActions } from './game.actions';
 
 export const gameFeatureKey = 'game';
@@ -16,8 +23,17 @@ export interface RealtimeGameState {
   readonly chatMessages: readonly ChatMessage[];
   readonly lastPlayerMove: Player | null;
   readonly lastPlayerHit: Player | null;
+  readonly powerUps: readonly PowerUp[];
+  readonly lastPowerUpPlayer: Player | null;
   readonly lastChatMessage: ChatMessage | null;
   readonly lastMapTileChange: MapTileChange | null;
+  readonly mqttConnectionStatus: MqttConnectionStatus;
+  readonly gameEvents: readonly GameEventEnvelope[];
+  readonly processedGameEventIds: readonly string[];
+  readonly lastGameEvent: GameEventEnvelope | null;
+  readonly gameEnded: GameEventEnvelope<GameEndedEventData> | null;
+  readonly gameStarted: boolean;
+  readonly lastPlayerShot: RealtimeShot | null;
 }
 
 export const initialRealtimeGameState: RealtimeGameState = {
@@ -28,8 +44,17 @@ export const initialRealtimeGameState: RealtimeGameState = {
   chatMessages: [],
   lastPlayerMove: null,
   lastPlayerHit: null,
+  powerUps: [],
+  lastPowerUpPlayer: null,
   lastChatMessage: null,
   lastMapTileChange: null,
+  mqttConnectionStatus: 'disconnected',
+  gameEvents: [],
+  processedGameEventIds: [],
+  lastGameEvent: null,
+  gameEnded: null,
+  gameStarted: false,
+  lastPlayerShot: null,
 };
 
 export const gameReducer = createReducer(
@@ -60,6 +85,15 @@ export const gameReducer = createReducer(
     players: upsertPlayer(state.players, player),
     lastPlayerHit: player,
   })),
+  on(GameActions.playerPowerUpChanged, (state, { player }) => ({
+    ...state,
+    players: upsertPlayer(state.players, player),
+    lastPowerUpPlayer: player,
+  })),
+  on(GameActions.powerUpsUpdated, (state, { powerUps }) => ({
+    ...state,
+    powerUps: [...powerUps],
+  })),
   on(GameActions.localPlayerMoved, (state, { position }) => {
     if (!state.localPlayerId) {
       return state;
@@ -88,8 +122,38 @@ export const gameReducer = createReducer(
     ...state,
     lastMapTileChange: change,
   })),
+  on(GameActions.mqttConnectionStatusChanged, (state, { status }) => ({
+    ...state,
+    mqttConnectionStatus: status,
+  })),
+  on(GameActions.gameEventHistoryReceived, (state, { gameEvents }) =>
+    gameEvents.reduce(applyGameEvent, state),
+  ),
+  on(GameActions.mqttGameEventReceived, (state, { gameEvent }) => applyGameEvent(state, gameEvent)),
+  on(GameActions.gameStarted, (state) => ({ ...state, gameStarted: true })),
+  on(GameActions.playerShot, (state, { shot }) => ({ ...state, lastPlayerShot: shot })),
+  on(GameActions.gameEndedReceived, (state, { gameEvent }) => applyGameEvent(state, gameEvent)),
   on(GameActions.realtimeStateReset, () => initialRealtimeGameState),
 );
+
+function applyGameEvent(state: RealtimeGameState, gameEvent: GameEventEnvelope): RealtimeGameState {
+  if (state.processedGameEventIds.includes(gameEvent.eventId)) {
+    return state;
+  }
+
+  const gameEvents = [...state.gameEvents, gameEvent].slice(-100);
+  const processedGameEventIds = [...state.processedGameEventIds, gameEvent.eventId].slice(-200);
+  return {
+    ...state,
+    gameEvents,
+    processedGameEventIds,
+    lastGameEvent: gameEvent,
+    gameEnded:
+      gameEvent.eventType === 'game.ended'
+        ? (gameEvent as GameEventEnvelope<GameEndedEventData>)
+        : state.gameEnded,
+  };
+}
 
 function upsertPlayer(players: readonly Player[], updatedPlayer: Player): Player[] {
   const index = players.findIndex((player) => player.id === updatedPlayer.id);

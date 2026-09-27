@@ -29,7 +29,7 @@
   border: 2px solid var(--border);
   margin-top: 1rem;
   padding: 1.5rem;
-  width: min(100%, 31rem);
+  width: min(100%, 38rem);
 
   h2 {
     font-size: 1.25rem;
@@ -90,6 +90,91 @@
   width: 100%;
 }
 
+.map-selector {
+  border: 0;
+  margin: 1.2rem 0 0;
+  padding: 0;
+
+  legend {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.55rem;
+  }
+}
+
+.map-grid {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.menu-panel .map-card {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  cursor: pointer;
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.55rem;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  strong {
+    color: var(--text);
+    display: block;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+  }
+
+  small {
+    color: var(--text-muted);
+    display: block;
+    font-size: 0.7rem;
+    line-height: 1.35;
+  }
+
+  &--selected,
+  &:has(input:focus-visible) {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+}
+
+.map-preview {
+  background-color: #182016;
+  background-image:
+    linear-gradient(90deg, transparent 42%, #b85c38 42% 58%, transparent 58%),
+    linear-gradient(transparent 42%, #aab2b5 42% 58%, transparent 58%);
+  display: block;
+  height: 2.5rem;
+
+  &--fortress {
+    background-color: #1d2226;
+    background-image:
+      repeating-linear-gradient(90deg, transparent 0 18%, #7e8992 18% 28%),
+      repeating-linear-gradient(0deg, transparent 0 42%, #3d474f 42% 50%);
+  }
+
+  &--swamp {
+    background-color: #202c1f;
+    background-image:
+      radial-gradient(circle at 20% 35%, #4d7945 0 12%, transparent 13%),
+      linear-gradient(120deg, transparent 35%, #285b57 36% 57%, transparent 58%);
+  }
+
+  &--ruins {
+    background-color: #28201c;
+    background-image:
+      linear-gradient(35deg, transparent 35%, #9b5038 36% 48%, transparent 49%),
+      linear-gradient(145deg, transparent 55%, #552b20 56% 67%, transparent 68%);
+  }
+}
+
 .room-code-form {
   display: grid;
   gap: 0.5rem;
@@ -118,7 +203,22 @@
   }
 }
 
+.menu-links {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.25rem;
+
+  a {
+    color: var(--accent, #5b9fd4);
+    font-size: 0.9rem;
+  }
+}
+
 @media (max-width: 480px) {
+  .map-grid {
+    grid-template-columns: 1fr;
+  }
   .room-code-form {
     grid-template-columns: 1fr;
 

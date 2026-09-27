@@ -13,14 +13,21 @@ import { ChatMessage } from '../models/chat-message.model';
 import { ConnectionStatus } from '../models/connection-status.model';
 import { GameState } from '../models/game-state.model';
 import { MapTileChange } from '../models/map-tile-change.model';
+import { GameEventEnvelope } from '../models/mqtt-game-event.model';
 import { Player } from '../models/player.model';
+import { PowerUp } from '../models/power-up.model';
 import { Position } from '../models/position.model';
 import {
   PlayerMoveRequest,
   PlayerHitRequest,
+  CollectPowerUpRequest,
+  FireShotRequest,
+  PlayerReadyRequest,
   RealtimeAck,
   RealtimeChatRequest,
   RealtimeMapTileChange,
+  RealtimeShot,
+  SurrenderRequest,
 } from '../models/realtime-event.model';
 import { GameActions } from '../store/game.actions';
 import {
@@ -35,6 +42,7 @@ import {
   selectPlayers,
 } from '../store/game.selectors';
 import { AuthService } from './auth.service';
+import { MqttGameService } from './mqtt-game.service';
 import { RealtimeBenchmarkReport, RealtimeBenchmarkService } from './realtime-benchmark.service';
 
 export type { ConnectionStatus } from '../models/connection-status.model';
@@ -64,6 +72,7 @@ export class GameService implements OnDestroy {
   private readonly store = inject(Store);
   private readonly createConnection = inject(REALTIME_HUB_CONNECTION_FACTORY);
   private readonly benchmark = inject(RealtimeBenchmarkService);
+  private readonly mqtt = inject(MqttGameService);
 
   private connection?: HubConnection;
   private pendingRoomCode: string | null = null;
@@ -96,6 +105,7 @@ export class GameService implements OnDestroy {
     this.pendingRoomCode = null;
     this.joinedRoomCode = null;
     this.joinPromise = undefined;
+    this.mqtt.leaveRoom();
     const stop =
       this.connection?.state === HubConnectionState.Disconnected
         ? Promise.resolve()
@@ -132,6 +142,18 @@ export class GameService implements OnDestroy {
   }
 
   sendMapTileDestroyed(change: MapTileChange): void {
+    // Expanded map is 20x15 * subdivision 3 = 60x45 (must match GameHub).
+    if (
+      !Number.isInteger(change.column) ||
+      !Number.isInteger(change.row) ||
+      change.column < 0 ||
+      change.column >= 60 ||
+      change.row < 0 ||
+      change.row >= 45
+    ) {
+      return;
+    }
+
     const request: RealtimeMapTileChange = {
       ...change,
       ...createRealtimeMetadata(),
@@ -150,6 +172,29 @@ export class GameService implements OnDestroy {
       ...createRealtimeMetadata(),
     };
     this.invokeWithBenchmark('HitPlayer', request);
+  }
+
+  collectPowerUp(powerUpId: string): void {
+    if (!powerUpId) {
+      return;
+    }
+    const request: CollectPowerUpRequest = { powerUpId, ...createRealtimeMetadata() };
+    this.invokeWithBenchmark('CollectPowerUp', request);
+  }
+
+  setPlayerReady(ready: boolean): void {
+    const request: PlayerReadyRequest = { ready, ...createRealtimeMetadata() };
+    this.invokeWithBenchmark('SetPlayerReady', request);
+  }
+
+  sendPlayerShot(direction: string): void {
+    const request: FireShotRequest = { direction, ...createRealtimeMetadata() };
+    this.invokeWithBenchmark('FireShot', request);
+  }
+
+  surrender(): void {
+    const request: SurrenderRequest = createRealtimeMetadata();
+    this.invokeWithBenchmark('Surrender', request);
   }
 
   sendChatMessage(message: string): void {
@@ -238,8 +283,20 @@ export class GameService implements OnDestroy {
       this.store.dispatch(GameActions.playerMoved({ player }));
     });
     connection.on('ReceivePlayerHit', (player: Player) => {
-      this.benchmark.recordReceived();
+      this.benchmark.recordProtocolReceived(
+        'SignalR',
+        'collision.player-hit',
+        player.eventId,
+        player.clientSentAtUnixMs,
+        this.joinedRoomCode ?? this.pendingRoomCode ?? '',
+      );
       this.store.dispatch(GameActions.playerHit({ player }));
+    });
+    connection.on('ReceivePowerUpsUpdated', (powerUps: PowerUp[]) => {
+      this.store.dispatch(GameActions.powerUpsUpdated({ powerUps }));
+    });
+    connection.on('ReceivePlayerPowerUp', (player: Player) => {
+      this.store.dispatch(GameActions.playerPowerUpChanged({ player }));
     });
     connection.on('ReceiveChatHistory', (messages: ChatMessage[]) => {
       this.store.dispatch(GameActions.chatHistoryReceived({ messages }));
@@ -249,8 +306,28 @@ export class GameService implements OnDestroy {
       this.store.dispatch(GameActions.chatMessageReceived({ message }));
     });
     connection.on('ReceiveMapTileDestroyed', (change: RealtimeMapTileChange) => {
-      this.benchmark.recordReceived();
+      this.benchmark.recordProtocolReceived(
+        'SignalR',
+        'map.tile-destroyed',
+        change.eventId,
+        change.clientSentAtUnixMs,
+        this.joinedRoomCode ?? this.pendingRoomCode ?? '',
+      );
       this.store.dispatch(GameActions.mapTileDestroyed({ change }));
+    });
+    connection.on('ReceiveGameEventHistory', (gameEvents: GameEventEnvelope[]) => {
+      this.store.dispatch(GameActions.gameEventHistoryReceived({ gameEvents }));
+    });
+    connection.on('ReceiveGameStarted', () => {
+      sessionStorage.setItem(GAME_CONFIG.gameStartedStorageKey, 'true');
+      this.store.dispatch(GameActions.gameStarted());
+    });
+    connection.on('ReceivePlayerShot', (shot: RealtimeShot) => {
+      this.benchmark.recordReceived();
+      this.store.dispatch(GameActions.playerShot({ shot }));
+    });
+    connection.on('ReceiveGameEnded', (gameEvent: GameEventEnvelope) => {
+      this.store.dispatch(GameActions.gameEndedReceived({ gameEvent }));
     });
     connection.onreconnecting(() => {
       this.store.dispatch(GameActions.connectionStatusChanged({ status: 'connecting' }));
@@ -289,6 +366,7 @@ export class GameService implements OnDestroy {
         .invoke<void>('JoinRoom', roomCode)
         .then(() => {
           this.joinedRoomCode = roomCode;
+          this.mqtt.joinRoom(roomCode);
         })
         .catch((error: unknown) => this.handleConnectionError(error))
         .finally(() => {
@@ -299,8 +377,24 @@ export class GameService implements OnDestroy {
   }
 
   private invokeWithBenchmark(
-    methodName: 'MovePlayer' | 'HitPlayer' | 'SendChatMessage' | 'DestroyMapTile',
-    request: PlayerMoveRequest | PlayerHitRequest | RealtimeChatRequest | RealtimeMapTileChange,
+    methodName:
+      | 'MovePlayer'
+      | 'HitPlayer'
+      | 'SendChatMessage'
+      | 'DestroyMapTile'
+      | 'CollectPowerUp'
+      | 'SetPlayerReady'
+      | 'FireShot'
+      | 'Surrender',
+    request:
+      | PlayerMoveRequest
+      | PlayerHitRequest
+      | RealtimeChatRequest
+      | RealtimeMapTileChange
+      | CollectPowerUpRequest
+      | PlayerReadyRequest
+      | FireShotRequest
+      | SurrenderRequest,
   ): void {
     if (this.connection?.state !== HubConnectionState.Connected || !this.joinedRoomCode) {
       return;
@@ -311,6 +405,11 @@ export class GameService implements OnDestroy {
       .invoke<RealtimeAck>(methodName, request)
       .then((ack) => this.benchmark.recordAcknowledged(ack.eventId))
       .catch((error: unknown) => {
+        // Gameplay validation errors should not look like a dropped connection.
+        if (methodName === 'DestroyMapTile' || methodName === 'CollectPowerUp') {
+          console.warn(`DestroyMapTile rejected: ${readableError(error)}`);
+          return;
+        }
         this.store.dispatch(GameActions.connectionErrorChanged({ message: readableError(error) }));
       });
   }

@@ -1,0 +1,62 @@
+:host {
+  display: block;
+}
+
+.profile-page {
+  align-content: center;
+  display: grid;
+  justify-items: center;
+  padding-block: 2rem;
+}
+
+.profile-panel {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  padding: 1.5rem;
+  width: min(100%, 28rem);
+
+  h1 {
+    font-size: 1.35rem;
+    margin: 0 0 1rem;
+    text-align: center;
+    text-transform: uppercase;
+  }
+}
+
+.profile-fields {
+  margin: 0 0 1.25rem;
+
+  div {
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.65rem 0;
+  }
+
+  dt {
+    color: var(--muted, #9aa4b2);
+    font-size: 0.85rem;
+  }
+
+  dd {
+    margin: 0;
+  }
+
+  .mono {
+    font-family: ui-monospace, monospace;
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+  }
+}
+
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1rem;
+
+  a {
+    text-decoration: none;
+  }
+}
